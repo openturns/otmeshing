@@ -22,13 +22,13 @@
 #include <openturns/PersistentObjectFactory.hxx>
 
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Triangulation_2.h>
-#include <CGAL/Triangulation_3.h>
+#include <CGAL/Delaunay_triangulation_2.h>
+#include <CGAL/Delaunay_triangulation_3.h>
 #include <CGAL/Triangulation.h>
 #include <CGAL/Epick_d.h>
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
-typedef CGAL::Triangulation_2<K> Triangulation2;
-typedef CGAL::Triangulation_3<K> Triangulation3;
+typedef CGAL::Delaunay_triangulation_2<K> Triangulation2;
+typedef CGAL::Delaunay_triangulation_3<K> Triangulation3;
 typedef CGAL::Triangulation<CGAL::Epick_d< CGAL::Dynamic_dimension_tag > > TriangulationD;
 
 using namespace OT;
