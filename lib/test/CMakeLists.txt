@@ -29,8 +29,8 @@ macro (ot_check_test TESTNAME)
 endmacro ()
 
 
-#ot_check_test (CloudMesher_std IGNOREOUT)
-
+ot_check_test (CloudMesher_std IGNOREOUT)
+target_link_libraries(t_CloudMesher_std PRIVATE CGAL::CGAL Eigen3::Eigen)
 
 add_custom_target ( cppcheck COMMAND ${CMAKE_CTEST_COMMAND} -R "^cppcheck_"
                     DEPENDS ${CHECK_TO_BE_RUN}

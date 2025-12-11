@@ -14,9 +14,9 @@ print("triangulation=", repr(triangulation))
 assert triangulation.getDimension() == 2
 assert triangulation.getVertices() == vertices
 assert len(triangulation.getSimplices()) == 3
-assert triangulation.getSimplices()[0] == [1, 0, 2]
-assert triangulation.getSimplices()[1] == [0, 3, 2]
-assert triangulation.getSimplices()[2] == [0, 4, 3]
+assert triangulation.getSimplices()[0] == [1, 0, 4]
+assert triangulation.getSimplices()[1] == [1, 3, 2]
+assert triangulation.getSimplices()[2] == [1, 4, 3]
 assert triangulation.isValid()
 
 # 3d triangulation of the unit cube
