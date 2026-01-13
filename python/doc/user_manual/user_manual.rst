@@ -9,3 +9,4 @@ API Reference
   
     CloudMesher
     ConvexHullMesher
+    PolygonMesher
