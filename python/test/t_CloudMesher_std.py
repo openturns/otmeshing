@@ -21,7 +21,7 @@ ott.assert_almost_equal(vol, 0.6125)
 
 # nd triangulation of the unit hypercube
 for method in [otmeshing.CloudMesher.BASIC, otmeshing.CloudMesher.DELAUNAY]:
-    mesher = otmeshing.CloudMesher(otmeshing.CloudMesher.DELAUNAY)
+    mesher = otmeshing.CloudMesher(method)
     for dim in range(1, 7):
         print(f"-- cube dim={dim}")
         vertices = ot.Box([0] * dim).generate()

@@ -29,4 +29,5 @@ graph.setLegendPosition("upper left")
 graph.setTitle("Convex hull of sample")
 view = otv.View(graph)
 
+# %%
 otv.View.ShowAll()

@@ -39,6 +39,7 @@ endmacro ()
 
 ot_pyinstallcheck_test (CloudMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (ConvexHullMesher_std IGNOREOUT)
+ot_pyinstallcheck_test (ConvexDecompositionMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (PolygonMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (docstring IGNOREOUT)
 

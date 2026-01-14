@@ -33,4 +33,5 @@ graph.setLegendPosition("upper left")
 graph.setTitle("Delaunay triangulation of sample")
 view = otv.View(graph)
 
+# %%
 otv.View.ShowAll()

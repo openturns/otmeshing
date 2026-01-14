@@ -35,7 +35,7 @@ using namespace OT;
 namespace OTMESHING
 {
 
-CLASSNAMEINIT(ConvexHullMesher);
+CLASSNAMEINIT(ConvexHullMesher)
 
 static Factory<ConvexHullMesher> Factory_ConvexHullMesher;
 

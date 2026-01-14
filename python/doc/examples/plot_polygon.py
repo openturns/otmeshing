@@ -42,4 +42,5 @@ graph.setLegendPosition("upper left")
 graph.setTitle("Polygon triangulation")
 view = otv.View(graph)
 
+# %%
 otv.View.ShowAll()

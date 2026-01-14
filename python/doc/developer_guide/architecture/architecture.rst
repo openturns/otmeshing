@@ -6,9 +6,9 @@ Dependencies
 
 Several dependencies are needed in order to build the module:
 
- - OpenTURNS
- - CGAL
- - Qhull (optional)
+ - OpenTURNS >=1.26
+ - CGAL >=5.2
+ - Qhull >=2020.2 (optional)
  - Sphinx-doc (optional for this doc)
 
 Compilation

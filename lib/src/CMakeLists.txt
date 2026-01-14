@@ -5,10 +5,12 @@ ot_add_current_dir_to_include_dirs ()
 ot_add_source_file (CloudMesher.cxx)
 ot_add_source_file (ConvexHullMesher.cxx)
 ot_add_source_file (PolygonMesher.cxx)
+ot_add_source_file (ConvexDecompositionMesher.cxx)
 
 ot_install_header_file (CloudMesher.hxx)
 ot_install_header_file (ConvexHullMesher.hxx)
 ot_install_header_file (PolygonMesher.hxx)
+ot_install_header_file (ConvexDecompositionMesher.hxx)
 
 include_directories (${INTERNAL_INCLUDE_DIRS})
 

@@ -5,7 +5,7 @@ set -xe
 cd /tmp
 cmake -DCMAKE_INSTALL_PREFIX=${HOME}/.local \
       -DCMAKE_UNITY_BUILD=ON \
-      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wshadow -Wsuggest-override -Werror -D_GLIBCXX_ASSERTIONS --coverage" \
+      -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Wshadow -Wsuggest-override -Werror -Wno-stringop-overflow -D_GLIBCXX_ASSERTIONS --coverage" \
       -DSWIG_COMPILE_FLAGS="-O1 -Wno-unused-parameter -Wno-shadow" \
       -DUSE_SPHINX=ON -DSPHINX_FLAGS="-W -T -j4" \
       -B build /io
@@ -24,5 +24,5 @@ UID_GID=$1
 if test -n "${UID_GID}"
 then
   sudo chown -R ${UID_GID} ~/.local/share/doc/*/html
-  sudo cp -r ~/.local/share/doc/*/html /io
+  sudo cp -pr ~/.local/share/doc/*/html /io
 fi

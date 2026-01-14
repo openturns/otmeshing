@@ -17,6 +17,10 @@ case $choice in
     docker pull openturns/archlinux-module-mingw
     docker run --rm -e MAKEFLAGS -e OPENTURNS_NUM_THREADS=2 -v `pwd`:/io openturns/archlinux-module-mingw /io/.ci_support/run_docker_mingw.sh
     ;;
+  "3" | "mindeps")
+    docker pull debian:11
+    docker run --rm -e MAKEFLAGS -e OPENTURNS_NUM_THREADS=2 -v `pwd`:/io debian:11 /io/.ci_support/run_docker_mindeps.sh
+    ;;
   *)
     echo "sorry?"
     exit 1

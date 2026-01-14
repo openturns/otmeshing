@@ -33,7 +33,7 @@ using namespace OT;
 namespace OTMESHING
 {
 
-CLASSNAMEINIT(CloudMesher);
+CLASSNAMEINIT(CloudMesher)
 
 static Factory<CloudMesher> Factory_CloudMesher;
 
@@ -72,12 +72,10 @@ Mesh buildTriangulation(const Sample & points)
   std::unordered_map<typename TriangulationType::Vertex_iterator, UnsignedInteger> vertexToIndexMap;
   UnsignedInteger vertexIndex = 0;
   Sample vertices(0, dimension);
-  for (typename TriangulationType::Vertex_iterator vi = triangulation.vertices_begin(); vi != triangulation.vertices_end(); ++ vi)
-  {
-    // the infinite first vertex can be skipped
-    if (vi == triangulation.vertices_begin())
-      ++ vi;
 
+  // the infinite first vertex can be skipped
+  for (typename TriangulationType::Vertex_iterator vi = ++ triangulation.vertices_begin(); vi != triangulation.vertices_end(); ++ vi)
+  {
     vertices.add(Point(vi->point().cartesian_begin(), vi->point().cartesian_end()));
     vertexToIndexMap[vi] = vertexIndex;
     ++ vertexIndex;

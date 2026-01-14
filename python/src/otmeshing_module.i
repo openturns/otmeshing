@@ -20,4 +20,5 @@
 %include otmeshing/otmeshingprivate.hxx
 %include CloudMesher.i
 %include ConvexHullMesher.i
+%include ConvexDecompositionMesher.i
 %include PolygonMesher.i

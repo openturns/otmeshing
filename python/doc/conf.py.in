@@ -81,6 +81,11 @@ sphinx_gallery_conf = {
     "download_all_examples": False,
     # directory where function/class granular galleries are stored
     "backreferences_dir": "gen_modules/backreferences",
+    # Modules for which function/class level galleries are created.
+    'doc_module'          : ('otmeshing'),
+    # objects to exclude from implicit backreferences. The default option
+    # is an empty set, i.e. exclude nothing.
+    'exclude_implicit_doc': {},
     # The duration of scripts that ran faster than that amount will not be
     # logged nor embedded in the html output
     "min_reported_time": 1e6,
