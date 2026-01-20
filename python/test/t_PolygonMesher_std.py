@@ -2,34 +2,34 @@
 
 import openturns as ot
 import otmeshing
+import math
 
 ot.TESTPREAMBLE()
 
-# 2d triangulation of a convex polygon
-polyline = [[3.0, 0.0], [2.0, 0.0], [2.0, 0.75], [2.5, 0.75], [3.0, 0.2]]
+# 2d triangulation of a convex polygon (regular n-sided)
+polyline = []
+n = 20
+for i in range(n):
+    r = 1.0
+    theta = i * 2.0 * math.pi / n
+    x = r * math.cos(theta)
+    y = r * math.sin(theta)
+    polyline.append([x, y])
 mesher = otmeshing.PolygonMesher()
 print("mesher=", mesher)
 triangulation = mesher.build(polyline)
 print("triangulation=", repr(triangulation))
 assert triangulation.getDimension() == 2
 assert triangulation.getVertices() == polyline
-assert len(triangulation.getSimplices()) == 3
-assert triangulation.getSimplices()[0] == [1, 0, 4]
-assert triangulation.getSimplices()[1] == [4, 3, 2]
-assert triangulation.getSimplices()[2] == [2, 1, 4]
+assert len(triangulation.getSimplices()) == n - 2
 assert triangulation.isValid()
 
-# 2d triangulation of a non-convex polygon
-polyline = [[0.0, 0.0], [0.0, 3.0], [1.0, 2.0],
-            [0.5, 0.5], [1.0, 0.5], [2.0, 2.0], [2.0, 0.0]]
+# 2d triangulation of a non-convex polygon (snail-like)
+polyline = [[0, 0], [0, 5], [6, 5], [6, 0], [2, 0], [2, 3], [4, 3],
+            [4, 2], [3, 2], [3, 1], [5, 1], [5, 4], [1, 4], [1, 0]]
 triangulation = mesher.build(polyline)
 print("triangulation=", repr(triangulation))
 assert triangulation.getDimension() == 2
 assert triangulation.getVertices() == polyline
-assert len(triangulation.getSimplices()) == 5
-assert triangulation.getSimplices()[0] == [6, 5, 4]
-assert triangulation.getSimplices()[1] == [3, 2, 1]
-assert triangulation.getSimplices()[2] == [0, 6, 4]
-assert triangulation.getSimplices()[3] == [3, 1, 0]
-assert triangulation.getSimplices()[4] == [0, 4, 3]
+assert len(triangulation.getSimplices()) == 12
 assert triangulation.isValid()

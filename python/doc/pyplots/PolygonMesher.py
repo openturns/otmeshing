@@ -1,9 +1,16 @@
+import math
 import otmeshing
 import openturns.viewer as otv
 
 mesher = otmeshing.PolygonMesher()
-polyline = [[0.0, 0.0], [0.0, 3.0], [1.0, 2.0],
-            [0.5, 0.5], [1.0, 0.5], [2.0, 2.0], [2.0, 0.0]]
+polyline = []
+n = 20
+for i in range(n):
+    r = 2.0 + i % 2
+    theta = i * 2.0 * math.pi / n
+    x = r * math.cos(theta)
+    y = r * math.sin(theta)
+    polyline.append([x, y])
 triangulation = mesher.build(polyline)
 
 graph = triangulation.draw()

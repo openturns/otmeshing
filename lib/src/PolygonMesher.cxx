@@ -21,26 +21,23 @@
 #include "openturns/PersistentObjectFactory.hxx"
 #include "otmeshing/PolygonMesher.hxx"
 
-#include "earcut.hpp"
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Polygon_2.h>
+#include <CGAL/Polygon_triangulation_decomposition_2.h>
 
-namespace mapbox {
-namespace util {
 
-template <>
-struct nth<0, OT::Point> {
-    inline static auto get(const OT::Point &t) {
-        return t[0];
-    };
+using KernelInexact = CGAL::Exact_predicates_inexact_constructions_kernel;
+using Point_2 = CGAL::Point_2<KernelInexact>;
+using Polygon_2 = CGAL::Polygon_2<KernelInexact>;
+
+struct Point2Hash
+{
+    std::size_t operator()(const Point_2& p) const
+    {
+        std::hash<double> h;
+        return h(p.x()) ^ (h(p.y()) << 1);
+    }
 };
-template <>
-struct nth<1, OT::Point> {
-    inline static auto get(const OT::Point &t) {
-        return t[1];
-    };
-};
-
-} // namespace util
-} // namespace mapbox
 
 using namespace OT;
 
@@ -90,19 +87,36 @@ Mesh PolygonMesher::build(const Sample & points) const
   if (size < 3)
     throw InvalidArgumentException(HERE) << "PolygonMesher expected points of size >=3, got " << size;
 
-  // The input points form a polygon line
-  std::vector<Point> polyline;
+  // the indices are not stored so we need to query a map
+  std::vector<Point_2> points2;
+  std::unordered_map<Point_2, UnsignedInteger> vertexToIndexMap;
   for (UnsignedInteger i = 0; i < size; ++ i)
-    polyline.push_back(points[i]);
+  {
+    const Point_2 p2(points(i, 0), points(i, 1));
+    points2.push_back(p2);
+    // A polygon is called simple if there is no pair of nonconsecutive edges sharing a point
+    if (vertexToIndexMap.count(p2) > 0)
+      throw InvalidArgumentException(HERE) << "PolygonMesher expected a simple polygon (no redundant vertex)";
+    vertexToIndexMap[p2] = i;
+  }
 
-  // earcut also allows one to define following lines as holes (unused here)
-  std::vector<std::vector<Point> > polygon(1, polyline);
+  const Polygon_2 polygon(points2.begin(), points2.end());
 
-  // Run tessellation
-  std::vector<UnsignedInteger> indices(mapbox::earcut<UnsignedInteger>(polygon));
-  IndicesCollection simplices(indices.size() / 3, 3);
-  for (UnsignedInteger i = 0; i < indices.size(); ++ i)
-    simplices(i / 3, i % 3) = indices[i];
+  // perform triangulation
+  std::vector<Polygon_2> triangles;
+  const CGAL::Polygon_triangulation_decomposition_2<KernelInexact> decomposition2;
+  decomposition2(polygon, std::back_inserter(triangles));
+
+  // retrieve triangles
+  IndicesCollection simplices(triangles.size(), 3);
+  for (UnsignedInteger i = 0; i < triangles.size(); ++ i)
+  {
+    for (UnsignedInteger j = 0; j < 3; ++ j)
+    {
+      const Point_2 & vh = triangles[i].vertex(j);
+      simplices(i, j) = vertexToIndexMap[vh];
+    }
+  }
   return Mesh(points, simplices);
 }
 
