@@ -21,4 +21,5 @@
 %include CloudMesher.i
 %include ConvexHullMesher.i
 %include ConvexDecompositionMesher.i
+%include IntersectionMesher.i
 %include PolygonMesher.i

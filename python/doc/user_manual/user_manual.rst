@@ -10,4 +10,5 @@ API Reference
     CloudMesher
     ConvexHullMesher
     ConvexDecompositionMesher
+    IntersectionMesher
     PolygonMesher

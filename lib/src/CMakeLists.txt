@@ -3,14 +3,16 @@
 ot_add_current_dir_to_include_dirs ()
 
 ot_add_source_file (CloudMesher.cxx)
+ot_add_source_file (ConvexDecompositionMesher.cxx)
 ot_add_source_file (ConvexHullMesher.cxx)
 ot_add_source_file (PolygonMesher.cxx)
-ot_add_source_file (ConvexDecompositionMesher.cxx)
+ot_add_source_file (IntersectionMesher.cxx)
 
 ot_install_header_file (CloudMesher.hxx)
-ot_install_header_file (ConvexHullMesher.hxx)
-ot_install_header_file (PolygonMesher.hxx)
 ot_install_header_file (ConvexDecompositionMesher.hxx)
+ot_install_header_file (ConvexHullMesher.hxx)
+ot_install_header_file (IntersectionMesher.hxx)
+ot_install_header_file (PolygonMesher.hxx)
 
 include_directories (${INTERNAL_INCLUDE_DIRS})
 
@@ -33,9 +35,15 @@ target_link_libraries (otmeshing PRIVATE Eigen3::Eigen)
 target_link_libraries (otmeshing PRIVATE CGAL::CGAL)
 
 if (Qhull_FOUND)
-  # add_definitions("-Dqh_QHpointer")
   target_compile_definitions (otmeshing PRIVATE OPENTURNS_HAVE_QHULL)
+  target_include_directories(otmeshing PRIVATE ${QHULL_INCLUDE_DIRS})
   target_link_libraries(otmeshing PRIVATE ${QHULL_LIBRARIES})
+endif ()
+
+if (cddlib_FOUND)
+  target_compile_definitions (otmeshing PRIVATE OPENTURNS_HAVE_CDDLIB)
+  target_include_directories(otmeshing PRIVATE ${CDDLIB_INCLUDE_DIRS})
+  target_link_libraries(otmeshing PRIVATE ${CDDLIB_LIBRARIES})
 endif ()
 
 # Add targets to the build-tree export set
