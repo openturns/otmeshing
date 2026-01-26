@@ -27,6 +27,11 @@ if (USE_QHULL)
   find_package (Qhull MODULE)
 endif ()
 
+option (USE_CDDLIB "Use cddlib for intersection" ON)
+if (USE_CDDLIB)
+  find_package (cddlib MODULE)
+endif ()
+
 if (NOT BUILD_SHARED_LIBS)
   list ( APPEND OTMESHING_DEFINITIONS "-DOTMESHING_STATIC" )
 endif ()
