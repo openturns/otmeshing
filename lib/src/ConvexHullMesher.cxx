@@ -147,18 +147,19 @@ Mesh ConvexHullMesher::build(const Sample & points) const
     return Mesh(vertices, simplices);
   }
 #ifdef OPENTURNS_HAVE_QHULL
+  QHULL_LIB_CHECK
+
   // Create qhull context
   qhT qh_qh;
   qhT *qh = &qh_qh;
-  QHULL_LIB_CHECK
   qh_zero(qh, stderr);
 
   // Run Qhull
-  const String qhull_cmd("qhull Qt Qx");
+  const String qhull_cmd("qhull Qt Qx"); // options: triangulated hull + exact arithmetics
   int rc = qh_new_qhull(qh, dimension, size,
                         const_cast<Scalar*>(points.getImplementation()->data()),
                         False, /* ismalloc */
-                        const_cast<char*>(qhull_cmd.c_str()), /* Qhull options: triangulated hull + exact */
+                        const_cast<char*>(qhull_cmd.c_str()),
                         NULL, NULL);
 
   if (rc != 0)
@@ -176,8 +177,8 @@ Mesh ConvexHullMesher::build(const Sample & points) const
     if (!vertex->deleted)
     {
       Point point(dimension);
-      for (UnsignedInteger j = 0; j < dimension; ++ j)
-        point[j] = vertex->point[j];
+      // assume vertex->point is an array of double
+      std::copy(vertex->point, vertex->point + dimension, point.begin());
       vertices.add(point);
 
       // qh_pointid gives indices wrt the original input sample
