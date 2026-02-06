@@ -19,6 +19,7 @@
  *
  */
 #include "openturns/PersistentObjectFactory.hxx"
+#include "openturns/SpecFunc.hxx"
 #include "otmeshing/IntersectionMesher.hxx"
 #include "otmeshing/CloudMesher.hxx"
 
@@ -102,13 +103,18 @@ Mesh IntersectionMesher::build(const OT::Mesh & mesh1, const OT::Mesh & mesh2) c
   // mesh1 simplices loop
   for (UnsignedInteger i1 = 0; i1 < ns1; ++ i1)
   {
+    Point lower1(dimension, SpecFunc::Infinity);
+    Point upper1(dimension, -SpecFunc::Infinity);
     // build V-representation of simplex
     for (UnsignedInteger j = 0; j <= dimension; ++ j)
     {
       const UnsignedInteger vi1j = simplices1(i1, j);
-      const Point pt(vertices1[vi1j]);
       for (UnsignedInteger k = 0; k < dimension; ++ k)
-        dd_set_d(m1->matrix[j][k + 1], pt[k]);
+	{
+	  dd_set_d(m1->matrix[j][k + 1], vertices1(vi1j, k));
+	  lower1[k] = std::min(lower1[k], vertices1(vi1j, k));
+	  upper1[k] = std::max(upper1[k], vertices1(vi1j, k));
+	}
     }
     dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
     if (err != dd_NoError)
@@ -119,16 +125,29 @@ Mesh IntersectionMesher::build(const OT::Mesh & mesh1, const OT::Mesh & mesh2) c
 
     // mesh2 simplices loop
     for (UnsignedInteger i2 = 0; i2 < ns2; ++ i2)
-    {
+    {      
+      Point lower2(dimension, SpecFunc::Infinity);
+      Point upper2(dimension, -SpecFunc::Infinity);
       // build V-representation of simplex
       for (UnsignedInteger j = 0; j <= dimension; ++ j)
       {
         const UnsignedInteger vi2j = simplices2(i2, j);
-        const Point pt(vertices2[vi2j]);
-        for (UnsignedInteger k = 0; k < dimension; ++ k) {
-          dd_set_d(m2->matrix[j][k + 1], pt[k]);
-        }
+        for (UnsignedInteger k = 0; k < dimension; ++ k)
+	  {
+	    dd_set_d(m2->matrix[j][k + 1], vertices2(vi2j, k));
+	    lower2[k] = std::min(lower2[k], vertices2(vi2j, k));
+	    upper2[k] = std::max(upper2[k], vertices2(vi2j, k));
+	  }
       }
+      Bool toSkip = false;
+      for (UnsignedInteger k = 0; k < dimension; ++ k)
+	{
+	  toSkip = std::max(lower1[k], lower2[k]) >= std::min(upper1[k], upper2[k]);
+	  if (toSkip)
+	    break;
+	}
+      if (!toSkip)
+	{
       dd_PolyhedraPtr p2 = dd_DDMatrix2Poly(m2, &err);
       if (err != dd_NoError)
         throw InternalException(HERE) << "dd_DDMatrix2Poly failed i2=" << i2;
@@ -191,11 +210,10 @@ Mesh IntersectionMesher::build(const OT::Mesh & mesh1, const OT::Mesh & mesh2) c
           }
           // triangulation vertices are different than the ones in intersectionVertices
           vertices.add(intersectionMesh.getVertices());
-        }
-      }
-
+        } // else V>d+1, decompose into several simplices
+      } // if (intersectionVerticesNumber >= (dimension + 1))
     } // mesh2 simplices loop
-
+    }
     dd_FreeMatrix(h1);
     dd_FreePolyhedra(p1);
 
