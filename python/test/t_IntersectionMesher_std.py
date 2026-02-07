@@ -29,11 +29,11 @@ for compression in [False, True]:
 N = 10
 f1 = ot.SymbolicFunction(["x", "y", "z"], ["x^4-y^4+2*(x^2+z^2)-16"])
 level1 = ot.LevelSet(f1, ot.LessOrEqual(), 0.0)
-mesh1 = ot.LevelSetMesher([N]*3).build(level1, ot.Interval([-5.0] * 3, [5.0] * 3))
+mesh1 = ot.LevelSetMesher([N] * 3).build(level1, ot.Interval([-5.0] * 3, [5.0] * 3))
 # mesh1.exportToVTKFile("mesh1.vtk")
 f2 = ot.SymbolicFunction(["x", "y", "z"], ["z^4-y^4+2*(y^2+z^2)-16"])
 level2 = ot.LevelSet(f2, ot.LessOrEqual(), 0.0)
-mesh2 = ot.LevelSetMesher([N]*3).build(level2, ot.Interval([-5.0] * 3, [5.0] * 3))
+mesh2 = ot.LevelSetMesher([N] * 3).build(level2, ot.Interval([-5.0] * 3, [5.0] * 3))
 # mesh2.exportToVTKFile("mesh2.vtk")
 inter12 = otmeshing.IntersectionMesher().build(mesh1, mesh2)
 volume = inter12.getVolume()
