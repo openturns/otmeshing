@@ -7,7 +7,7 @@ apt-get -y update && apt-get -y install curl gnupg
 echo deb [signed-by=/usr/share/keyrings/openturns-keyring.gpg] https://openturns.github.io/apt/debian bullseye main | tee /etc/apt/sources.list.d/openturns.list
 curl -fsSL https://openturns.github.io/apt/public.key | gpg --dearmor --yes --output /usr/share/keyrings/openturns-keyring.gpg
 
-apt-get -y update && apt-get -y install git g++ cmake swig python3-dev python3-openturns libopenturns-dev libcgal-dev
+apt-get -y update && apt-get -y install git g++ cmake swig python3-dev python3-openturns libopenturns-dev libcgal-dev libnanoflann-dev
 
 set -e
 git config --global --add safe.directory /io
