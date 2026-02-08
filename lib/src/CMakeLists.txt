@@ -7,12 +7,14 @@ ot_add_source_file (ConvexDecompositionMesher.cxx)
 ot_add_source_file (ConvexHullMesher.cxx)
 ot_add_source_file (PolygonMesher.cxx)
 ot_add_source_file (IntersectionMesher.cxx)
+ot_add_source_file (ConvexIntersectionMesher.cxx)
 
 ot_install_header_file (CloudMesher.hxx)
 ot_install_header_file (ConvexDecompositionMesher.hxx)
 ot_install_header_file (ConvexHullMesher.hxx)
-ot_install_header_file (IntersectionMesher.hxx)
 ot_install_header_file (PolygonMesher.hxx)
+ot_install_header_file (IntersectionMesher.hxx)
+ot_install_header_file (ConvexIntersectionMesher.hxx)
 
 include_directories (${INTERNAL_INCLUDE_DIRS})
 
