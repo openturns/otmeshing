@@ -21,6 +21,7 @@
 %include CloudMesher.i
 %include ConvexHullMesher.i
 %include ConvexDecompositionMesher.i
+%include Cylinder.i
 %include IntersectionMesher.i
 %include ConvexIntersectionMesher.i
 %include PolygonMesher.i
