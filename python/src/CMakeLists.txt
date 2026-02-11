@@ -50,7 +50,6 @@ ot_add_python_module( ${PACKAGE_NAME} ${PACKAGE_NAME}_module.i
                       CloudMesher.i CloudMesher_doc.i
                       ConvexHullMesher.i ConvexHullMesher_doc.i
                       ConvexDecompositionMesher.i ConvexDecompositionMesher_doc.i
-                      ConvexIntersectionMesher.i ConvexIntersectionMesher_doc.i
                       Cylinder.i Cylinder_doc.i
                       IntersectionMesher.i IntersectionMesher_doc.i
                       PolygonMesher.i PolygonMesher_doc.i

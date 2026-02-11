@@ -54,7 +54,7 @@ if dim <= 3:
 
 print("Intersect cylinders")
 t0 = time.time()
-inter12 = otm.ConvexIntersectionMesher().build(mesh1, mesh2)
+inter12 = otm.IntersectionMesher().buildConvex(mesh1, mesh2)
 t1 = time.time()
 print("Convex, t=", t1 - t0, "s", "volume=", inter12.getVolume())
 ott.assert_almost_equal(inter12.getVolume(), 0.778142671)

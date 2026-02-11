@@ -9,7 +9,7 @@ Cylinder meshing
 # The Cylinder objects are distinct from their mesh
 # and CloudMesher objects will allow to compute their meshes.
 # Then knowing their meshes are convex by definition
-# we can use the ConvexIntersectionMesher to compute the intersection.
+# we can use the IntersectionMesher to compute the intersection.
 
 # %%
 import openturns as ot
@@ -79,7 +79,7 @@ view = otv.View(graph2)
 
 # %%
 # Compute the intersection, we know both meshes are convex by definition
-inter12 = otm.ConvexIntersectionMesher().build(mesh1, mesh2)
+inter12 = otm.IntersectionMesher().buildConvex(mesh1, mesh2)
 
 # %%
 # Plot intersection

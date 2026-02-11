@@ -31,6 +31,21 @@ mesh : :py:class:`openturns.Mesh`
 
 // ---------------------------------------------------------------------
 
+%feature("docstring") OTMESHING::IntersectionMesher::buildConvex
+"Generate the mesh of the intersection of convexes.
+
+Parameters
+----------
+mesh1, mesh2 : :py:class:`openturns.Mesh`
+    Input convex meshes.
+
+Returns
+-------
+mesh : :py:class:`openturns.Mesh`
+    The mesh of the intersection."
+
+// ---------------------------------------------------------------------
+
 %feature("docstring") OTMESHING::IntersectionMesher::setRecompress
 "Recompression flag accessor.
 

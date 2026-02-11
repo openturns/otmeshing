@@ -51,6 +51,9 @@ public:
   /* Here is the interface that all derived class must implement */
   virtual OT::Mesh build(const OT::Mesh & mesh1, const OT::Mesh & mesh2) const;
 
+  // intersection of two convexes
+  virtual OT::Mesh buildConvex(const OT::Mesh & mesh1, const OT::Mesh & mesh2) const;
+
   /** Recompression flag accessor */
   void setRecompress(const OT::Bool recompress);
   OT::Bool getRecompress() const;

@@ -40,3 +40,14 @@ volume = inter12.getVolume()
 print("inter volume=", volume)
 ott.assert_almost_equal(volume, 347.2445)
 # inter12.exportToVTKFile("inter12.vtk")
+
+# convex intersection
+for dim in range(2, 6):
+    for N in range(1, 25, 5):
+        discr = [N, N] + [1] * (dim - 2)
+        mesh1 = ot.IntervalMesher(discr).build(ot.Interval([0.0] * dim, [3.0] * dim))
+        mesh2 = ot.IntervalMesher(discr).build(ot.Interval([1.0] * dim, [4.0] * dim))
+        intersection = mesher.buildConvex(mesh1, mesh2)
+        volume = intersection.getVolume()
+        print(f"{dim=} {N=} intersection={intersection} {volume=:.3g}")
+        ott.assert_almost_equal(volume, 2.0**dim)
