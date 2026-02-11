@@ -59,6 +59,9 @@ public:
   void setRecompress(const OT::Bool recompress);
   OT::Bool getRecompress() const;
 
+  /** Deduplicate vertices */
+  static OT::Mesh CompressMesh(const OT::Mesh & mesh);
+
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
 

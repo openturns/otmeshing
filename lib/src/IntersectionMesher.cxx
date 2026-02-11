@@ -24,6 +24,7 @@
 
 #include "otmeshing/IntersectionMesher.hxx"
 #include "otmeshing/CloudMesher.hxx"
+#include "otmeshing/ConvexDecompositionMesher.hxx"
 
 #ifdef OPENTURNS_HAVE_CDDLIB
 #include <setoper.h>
@@ -155,10 +156,60 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
   const UnsignedInteger size = coll.getSize();
   if (!size)
     throw InvalidArgumentException(HERE) << "IntersectionMesher expected a non-empty collection";
-  Mesh result(coll[0]);
-  for (UnsignedInteger i = 1; i < coll.getSize(); ++ i)
-    result = build2(result, coll[i]);
-  return result;
+
+  Collection<Mesh> todo(coll);
+  while (todo.getSize() > 1)
+  {
+    Collection<Mesh> done(todo.getSize() / 2);
+    // TODO: parallelize ?
+    for (UnsignedInteger i = 0; i < todo.getSize() / 2; ++ i)
+      done[i] = build2(todo[2 * i], todo[2 * i + 1]);
+
+    // report odd element
+    if (todo.getSize() % 2)
+      done.add(todo[todo.getSize() - 1]);
+
+    todo = done;
+  }
+  return todo[0];
+}
+
+/* Deduplicate mesh vertices */
+Mesh IntersectionMesher::CompressMesh(const Mesh & mesh)
+{
+  const UnsignedInteger dimension = mesh.getDimension();
+  const Sample vertices(mesh.getVertices());
+  IndicesCollection simplices(mesh.getSimplices());
+  const UnsignedInteger fullSize = vertices.getSize();
+  Indices compressedVertexMap(fullSize, fullSize);
+  const KDTree2 tree(vertices);
+  const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
+  Sample verticesCompressed(0, dimension);
+  for (UnsignedInteger i = 0; i < fullSize; ++ i)
+  {
+    // check if already marked
+    if (compressedVertexMap[i] < fullSize)
+      continue;
+
+    // retrieve the indices of unique points, beware the last few decimals can actually differ
+    Point distance;
+    const Indices nearest(tree.queryRadius(vertices[i], tolerance, distance));
+
+    // mark the whole set of unique points (contains i index)
+    const UnsignedInteger currentSize = verticesCompressed.getSize();
+    for (UnsignedInteger k = 0; k < nearest.getSize(); ++ k)
+      compressedVertexMap[nearest[k]] = currentSize;
+
+    // store the point
+    verticesCompressed.add(vertices[i]);
+  }
+  LOGDEBUG(OSS() << "recompression fullSize=" << fullSize << " compressedSize=" << verticesCompressed.getSize());
+
+  // renumber vertex indices
+  for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+    for (UnsignedInteger j = 0; j <= dimension; ++ j)
+      simplices(i, j) = compressedVertexMap[simplices(i, j)];
+  return Mesh(verticesCompressed, simplices);
 }
 
 Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
@@ -167,6 +218,34 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
   if (mesh2.getDimension() != dimension)
     throw InvalidArgumentException(HERE) << "IntersectionMesher expected meshes of same dimension";
 
+  if (dimension == 3000)
+  {
+    ConvexDecompositionMesher convexDecompositionMesher;
+    const Collection<Mesh> decomposition1(convexDecompositionMesher.build(mesh1));
+    const Collection<Mesh> decomposition2(convexDecompositionMesher.build(mesh2));
+    Sample vertices(0, dimension);
+    Collection<Indices> simplexColl;
+    for (UnsignedInteger i1 = 0; i1 < decomposition1.getSize(); ++ i1)
+    {
+      for (UnsignedInteger i2 = 0; i2 < decomposition2.getSize(); ++ i2)
+      {
+        const Mesh intersection12(build2Convex(decomposition1[i1], decomposition2[i2]));
+        vertices.add(intersection12.getVertices());
+        const IndicesCollection simplicesI(intersection12.getSimplices());
+        for (UnsignedInteger k = 0; k < simplicesI.getSize(); ++ k)
+        {
+          simplexColl.add(Indices(simplicesI.getImplementation()->cbegin_at(k),
+                                  simplicesI.getImplementation()->cbegin_at(k) + dimension + 1));
+        }
+      }
+    }
+
+    Mesh result(vertices, IndicesCollection(simplexColl));
+    if (recompress_)
+      result = CompressMesh(result);
+    return result;
+  } // dim=3
+  
 #ifdef OPENTURNS_HAVE_CDDLIB
   const IndicesCollection simplices1(mesh1.getSimplices());
   const IndicesCollection simplices2(mesh2.getSimplices());
@@ -319,45 +398,10 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
   dd_FreeMatrix(m2);
   dd_free_global_constants();
 
-  // eliminate duplicate vertices
-  const UnsignedInteger fullSize = vertices.getSize();
-  Indices compressedVertexMap(fullSize);
-  compressedVertexMap.fill();
+  Mesh result(vertices, IndicesCollection(simplexColl));
   if (recompress_)
-  {
-    compressedVertexMap.fill(fullSize);
-    Indices compressedIndices;
-    const KDTree2 tree(vertices);
-    const Scalar tolerance = 1e-12 * vertices.computeRange().norm();
-    for (UnsignedInteger i = 0; i < fullSize; ++ i)
-    {
-      // check if already marked
-      if (compressedVertexMap[i] < fullSize)
-        continue;
-
-      // retrieve the indices of unique points, beware the last few decimals can actually differ
-      Point distance;
-      const Indices nearest(tree.queryRadius(vertices[i], tolerance, distance));
-
-      // mark the whole set of unique points (contains i index)
-      const UnsignedInteger currentSize = compressedIndices.getSize();
-      for (UnsignedInteger k = 0; k < nearest.getSize(); ++ k)
-        compressedVertexMap[nearest[k]] = currentSize;
-
-      // store the point
-      compressedIndices.add(i);
-    }
-    LOGDEBUG(OSS() << "recompression fullSize=" << fullSize << " compressedSize=" << compressedIndices.getSize());
-    vertices = vertices.select(compressedIndices);
-  }
-
-  // copy simplices
-  IndicesCollection simplices(simplexColl.getSize(), dimension + 1);
-  for (UnsignedInteger i = 0; i < simplexColl.getSize(); ++ i)
-    for (UnsignedInteger j = 0; j <= dimension; ++ j)
-      simplices(i, j) = compressedVertexMap[simplexColl[i][j]];
-
-  return Mesh(vertices, simplices);
+    result = CompressMesh(result);
+  return result;
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
 #endif
@@ -369,10 +413,22 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
   const UnsignedInteger size = coll.getSize();
   if (!size)
     throw InvalidArgumentException(HERE) << "IntersectionMesher expected a non-empty collection";
-  Mesh result(coll[0]);
-  for (UnsignedInteger i = 1; i < coll.getSize(); ++ i)
-    result = build2Convex(result, coll[i]);
-  return result;
+
+  Collection<Mesh> todo(coll);
+  while (todo.getSize() > 1)
+  {
+    Collection<Mesh> done(todo.getSize() / 2);
+    // TODO: parallelize ?
+    for (UnsignedInteger i = 0; i < todo.getSize() / 2; ++ i)
+      done[i] = build2Convex(todo[2 * i], todo[2 * i + 1]);
+
+    // report odd element
+    if (todo.getSize() % 2)
+      done.add(todo[todo.getSize() - 1]);
+
+    todo = done;
+  }
+  return todo[0];
 }
 
 
@@ -519,7 +575,6 @@ Bool IntersectionMesher::getRecompress() const
 {
   return recompress_;
 }
-
 
 /* Method save() stores the object through the StorageManager */
 void IntersectionMesher::save(Advocate & adv) const
