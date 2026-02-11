@@ -48,8 +48,14 @@ public:
   /** String converter */
   OT::String __str__(const OT::String & offset = "") const override;
 
-  /* Here is the interface that all derived class must implement */
+  /** Generate mesh */
   virtual OT::Mesh build(const OT::Sample & points) const;
+
+  /** Method save() stores the object through the StorageManager */
+  void save(OT::Advocate & adv) const override;
+
+  /** Method load() reloads the object from the StorageManager */
+  void load(OT::Advocate & adv) override;
 
 protected:
 

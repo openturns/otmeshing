@@ -499,4 +499,19 @@ Bool IntersectionMesher::getRecompress() const
   return recompress_;
 }
 
+
+/* Method save() stores the object through the StorageManager */
+void IntersectionMesher::save(Advocate & adv) const
+{
+  PersistentObject::save(adv);
+  adv.saveAttribute("recompress_", recompress_);
+}
+
+/* Method load() reloads the object from the StorageManager */
+void IntersectionMesher::load(Advocate & adv)
+{
+  PersistentObject::load(adv);
+  adv.loadAttribute("recompress_", recompress_);
+}
+
 }
