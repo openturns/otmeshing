@@ -18,8 +18,12 @@
  *  along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+
 #include "otmeshing/ConvexDecompositionMesher.hxx"
+#include "otmeshing/CloudMesher.hxx"
+
 #include <openturns/PersistentObjectFactory.hxx>
+#include <openturns/SpecFunc.hxx>
 
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Polyhedron_3.h>
@@ -223,6 +227,15 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
     }
   }
   return result;
+}
+
+/* Check if mesh is convex */
+Bool ConvexDecompositionMesher::IsConvex(const Mesh & mesh)
+{
+  CloudMesher mesher;
+  const Scalar vm = mesh.getVolume();
+  const Scalar vc = mesher.build(mesh.getVertices()).getVolume();
+  return (vc > 0.0) && (std::abs((vm - vc) / vc) < std::sqrt(SpecFunc::Precision));
 }
 
 /* String converter */

@@ -1,6 +1,10 @@
 %feature("docstring") OTMESHING::CloudMesher
 "Mesher from a set of points.
 
+Triangulates a set of points.
+
+This can also be seen as the volumetric mesh (full cells) of the convex hull.
+
 Parameters
 ----------
 triangulationMethod : int

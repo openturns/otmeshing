@@ -28,6 +28,10 @@ simplices = [
 polyhedra = ot.Mesh(vertices, simplices)
 
 # %%
+# We can check the mesh is not convex
+otmeshing.ConvexDecompositionMesher.IsConvex(polyhedra)
+
+# %%
 # Draw the polyhedra
 shading = True
 thetaX, thetaY, thetaZ = 6.1, 3.7, 4.3

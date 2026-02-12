@@ -53,6 +53,9 @@ public:
   /** String converter */
   OT::String __repr__() const override;
 
+  /** Check if mesh is convex */
+  static OT::Bool IsConvex(const OT::Mesh & mesh);
+
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
 

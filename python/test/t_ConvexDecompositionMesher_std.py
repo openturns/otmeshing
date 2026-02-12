@@ -26,6 +26,7 @@ mesh = ot.Mesh(vertices, simplices)
 print(mesh)
 print(mesh.getVolume())
 assert mesh.isValid()
+assert not otmeshing.ConvexDecompositionMesher.IsConvex(mesh)
 
 # build decomposition
 mesher = otmeshing.ConvexDecompositionMesher()
@@ -35,6 +36,7 @@ volume_sum = 0.0
 for i, convex in enumerate(decomposition):
     print(i, repr(convex), convex.getVolume())
     volume_sum += convex.getVolume()
+    assert otmeshing.ConvexDecompositionMesher.IsConvex(convex)
 ott.assert_almost_equal(volume_sum, 7.0)
 
 # 3d volumetric mesh (two overlapping cubes)
