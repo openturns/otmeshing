@@ -92,7 +92,9 @@ Mesh buildTriangulation(const Sample & points)
     }
     ++ simplexIndex;
   }
-  return Mesh(vertices, simplices);
+  Mesh result(vertices, simplices);
+  result.fixOrientation();
+  return result;
 }
 
 

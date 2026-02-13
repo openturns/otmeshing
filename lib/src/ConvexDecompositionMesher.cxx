@@ -220,7 +220,9 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           simplexColl.add(simplex);
         }
       }
-      result.add(Mesh(verticesI, IndicesCollection(simplexColl)));
+      Mesh convexMesh(verticesI, IndicesCollection(simplexColl));
+      convexMesh.fixOrientation();
+      result.add(convexMesh);
     }
   }
   return result;

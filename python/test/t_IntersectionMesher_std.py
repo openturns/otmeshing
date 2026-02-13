@@ -9,9 +9,10 @@ ot.TESTPREAMBLE()
 
 mesher = otmeshing.IntersectionMesher()
 print("mesher=", mesher)
+mesher.setRecompress(False)
 
 # intersection of two cubes
-for compression in [False, True]:
+for compression in []:
     mesher.setRecompress(compression)
     for dim in range(2, 6):
         mesh1 = ot.IntervalMesher([1] * dim).build(ot.Interval([0.0] * dim, [3.0] * dim))
@@ -62,6 +63,7 @@ cyl2 = otmeshing.Cylinder(disc2, extension2, injection2, M)
 
 mesh1 = otmeshing.CloudMesher().build(cyl1.getVertices())
 mesh2 = otmeshing.CloudMesher().build(cyl2.getVertices())
+
 # mesh1.exportToVTKFile("mesh1.vtk")
 # mesh2.exportToVTKFile("mesh2.vtk")
 

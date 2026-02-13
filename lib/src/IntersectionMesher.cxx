@@ -384,6 +384,7 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
 
       // Combine inequalities to compute intersection
       dd_MatrixAppendTo(&h2, h1);
+      dd_SetMatrixRepresentationType(h2, dd_Inequality);
 
       // Convert intersection back to V-representation
       dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(h2, &err);
@@ -413,15 +414,15 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
         }
 
         // build simplices
-        if (intersectionVerticesNumber == (dimension + 1))
-        {
-          // only one simplex
-          Indices simplex(dimension + 1);
-          simplex.fill(verticesSize);
-          simplexColl.add(simplex);
-          vertices.add(intersectionVertices);
-        }
-        else
+        // if (intersectionVerticesNumber == (dimension + 1))
+        // {
+        //   // only one simplex
+        //   Indices simplex(dimension + 1);
+        //   simplex.fill(verticesSize);
+        //   simplexColl.add(simplex);
+        //   vertices.add(intersectionVertices);
+        // }
+        // else
         {
           // V>d+1, decompose into several simplices
           const Mesh intersectionMesh(cloudMesher.build(intersectionVertices));
@@ -542,6 +543,7 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
 
   // Combine inequalities to compute intersection
   dd_MatrixAppendTo(&h2, h1);
+  dd_SetMatrixRepresentationType(h2, dd_Inequality);
 
   // Convert intersection back to V-representation
   dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(h2, &err);
@@ -571,15 +573,16 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
       }
 
     // build simplices
-    if (intersectionVerticesNumber == (dimension + 1))
-    {
-      // only one simplex
-      Indices simplex(dimension + 1);
-      simplex.fill(verticesSize);
-      simplexColl.add(simplex);
-      vertices.add(intersectionVertices);
-    }
-    else
+    // if (intersectionVerticesNumber == (dimension + 1))
+    // {
+    //   // only one simplex
+    //   Indices simplex(dimension + 1);
+    //   simplex.fill(verticesSize);
+    //   simplexColl.add(simplex);
+    //   vertices.add(intersectionVertices);
+    //   Mesh mesh(intersectionVertices);
+    // }
+    // else
     {
       // V>d+1, decompose into several simplices
       const Mesh intersectionMesh(cloudMesher.build(intersectionVertices));
