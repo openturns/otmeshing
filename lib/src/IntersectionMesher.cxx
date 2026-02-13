@@ -179,8 +179,10 @@ Mesh IntersectionMesher::CompressMesh(const Mesh & mesh)
 {
   const UnsignedInteger dimension = mesh.getDimension();
   const Sample vertices(mesh.getVertices());
-  IndicesCollection simplices(mesh.getSimplices());
   const UnsignedInteger fullSize = vertices.getSize();
+  if (!fullSize)
+    return mesh;
+  IndicesCollection simplices(mesh.getSimplices());
   Indices compressedVertexMap(fullSize, fullSize);
   const KDTree2 tree(vertices);
   const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
@@ -212,6 +214,53 @@ Mesh IntersectionMesher::CompressMesh(const Mesh & mesh)
   return Mesh(verticesCompressed, simplices);
 }
 
+#ifdef OPENTURNS_HAVE_CDDLIB
+String cdd_error_to_string(const dd_ErrorType err)
+{
+  switch (err)
+  {
+    case dd_DimensionTooLarge:
+      return "Dimension too large";
+    case dd_ImproperInputFormat:
+      return "Improper input format";
+    case dd_NegativeMatrixSize:
+      return "Negative matrix size";
+    case dd_EmptyVrepresentation:
+      return "Empty V-representation";
+    case dd_EmptyHrepresentation:
+      return "Empty H-representation";
+    case dd_EmptyRepresentation:
+      return "Empty representation";
+    case dd_IFileNotFound:
+      return "Input file not found";
+    case dd_OFileNotOpen:
+      return "Output file not open";
+    case dd_NoLPObjective:
+      return "No LP objective specified";
+    case dd_NoRealNumberSupport:
+      return "No real number support (library built without GMP?)";
+    case dd_NotAvailForH:
+      return "Operation not available for H-representation";
+    case dd_NotAvailForV:
+      return "Operation not available for V-representation";
+    case dd_CannotHandleLinearity:
+      return "Cannot handle linearity in this context";
+    case dd_RowIndexOutOfRange:
+      return "Row index out of range";
+    case dd_ColIndexOutOfRange:
+      return "Column index out of range";
+    case dd_LPCycling:
+      return "LP cycling detected";
+    case dd_NumericallyInconsistent:
+      return "Numerical inconsistency detected";
+    case dd_NoError:
+      return "No error";
+    default:
+        return "Unknown cddlib error";
+  }
+}
+#endif
+
 Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
 {
   const UnsignedInteger dimension = mesh1.getDimension();
@@ -230,6 +279,9 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
       for (UnsignedInteger i2 = 0; i2 < decomposition2.getSize(); ++ i2)
       {
         const Mesh intersection12(build2Convex(decomposition1[i1], decomposition2[i2]));
+        if (intersection12.getSimplicesNumber() == 0)
+          continue;
+
         vertices.add(intersection12.getVertices());
         const IndicesCollection simplicesI(intersection12.getSimplices());
         for (UnsignedInteger k = 0; k < simplicesI.getSize(); ++ k)
@@ -239,13 +291,12 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
         }
       }
     }
-
     Mesh result(vertices, IndicesCollection(simplexColl));
     if (recompress_)
       result = CompressMesh(result);
     return result;
   } // dim=3
-  
+
 #ifdef OPENTURNS_HAVE_CDDLIB
   const IndicesCollection simplices1(mesh1.getSimplices());
   const IndicesCollection simplices2(mesh2.getSimplices());
@@ -292,7 +343,7 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
     }
     dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
     if (err != dd_NoError)
-      throw InternalException(HERE) << "dd_DDMatrix2Poly failed i1=" << i1;
+      throw InternalException(HERE) << "dd_DDMatrix2Poly failed i1=" << i1 << ": " << cdd_error_to_string(err);
 
     // Convert V-representation to H-representation (inequalities)
     dd_MatrixPtr h1 = dd_CopyInequalities(p1);
@@ -325,7 +376,7 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
 
       dd_PolyhedraPtr p2 = dd_DDMatrix2Poly(m2, &err);
       if (err != dd_NoError)
-        throw InternalException(HERE) << "dd_DDMatrix2Poly failed i2=" << i2;
+        throw InternalException(HERE) << "dd_DDMatrix2Poly failed i2=" << i2 << ": " << cdd_error_to_string(err);
 
       // Convert V-representation to H-representation (inequalities)
       dd_MatrixPtr h2 = dd_CopyInequalities(p2);
@@ -333,11 +384,12 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
 
       // Combine inequalities to compute intersection
       dd_MatrixAppendTo(&h2, h1);
+      dd_SetMatrixRepresentationType(h2, dd_Inequality);
 
       // Convert intersection back to V-representation
       dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(h2, &err);
       if (err != dd_NoError)
-        throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection";
+        throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection: "  << cdd_error_to_string(err);
       dd_FreeMatrix(h2);
 
       // retrieve vertices
@@ -471,7 +523,7 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
   }
   dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
   if (err != dd_NoError)
-    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 1";
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 1: " << cdd_error_to_string(err);
 
   // Convert V-representation to H-representation (inequalities)
   dd_MatrixPtr h1 = dd_CopyInequalities(p1);
@@ -483,7 +535,7 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
   } // Faces of the simplex
   dd_PolyhedraPtr p2 = dd_DDMatrix2Poly(m2, &err);
   if (err != dd_NoError)
-    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 2";
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 2: " << cdd_error_to_string(err);
 
   // Convert V-representation to H-representation (inequalities)
   dd_MatrixPtr h2 = dd_CopyInequalities(p2);
@@ -491,11 +543,12 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
 
   // Combine inequalities to compute intersection
   dd_MatrixAppendTo(&h2, h1);
+  dd_SetMatrixRepresentationType(h2, dd_Inequality);
 
   // Convert intersection back to V-representation
   dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(h2, &err);
   if (err != dd_NoError)
-    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection";
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection: " << cdd_error_to_string(err);
   dd_FreeMatrix(h2);
 
   // retrieve vertices
