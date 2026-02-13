@@ -115,20 +115,30 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   }
   else if (intrinsicDimension == 3)
   {
+    const Point simplicesVolume(mesh.computeSimplicesVolume());
+
     // build from the volumetric mesh
     for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
     {
+      // LevelSetMesher can yield almost empty cells
+      // possible workaround with key LevelSetMesher-SolveEquation=False
+      if (!(simplicesVolume[i] > SpecFunc::Precision))
+        continue;
+
       const UnsignedInteger i1 = simplices(i, 0);
       const UnsignedInteger i2 = simplices(i, 1);
       const UnsignedInteger i3 = simplices(i, 2);
       const UnsignedInteger i4 = simplices(i, 3);
+
       const Point_3 v1{vertices(i1, 0), vertices(i1, 1), vertices(i1, 2)};
       const Point_3 v2{vertices(i2, 0), vertices(i2, 1), vertices(i2, 2)};
       const Point_3 v3{vertices(i3, 0), vertices(i3, 1), vertices(i3, 2)};
       const Point_3 v4{vertices(i4, 0), vertices(i4, 1), vertices(i4, 2)};
+
       Polyhedron poly;
       poly.make_tetrahedron(v1, v2, v3, v4);
-      Nef_polyhedron tetra(poly);
+
+      const Nef_polyhedron tetra(poly);
       nef += tetra;
     }
   }
@@ -173,29 +183,8 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       // arbitrarily select the apex as the first vertex
       const UnsignedInteger apexIndex = vertexToIndexMap[part.vertices_begin()];
 
-      // compute the number of facets not incident to the apex vertex
-      UnsignedInteger simplexNumber = 0;
-      for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
-      {
-        auto h = f->facet_begin();
-        Bool ok = true;
- 
-        for (UnsignedInteger j = 0; j < dimension + 1; ++ j)
-        {
-          if (vertexToIndexMap[h->vertex()] == apexIndex)
-          {
-            ok = false;
-            break;
-          }
-          ++ h;
-        }
-        if (ok)
-          ++ simplexNumber;
-      }
-
       // build simplices
-      IndicesCollection simplicesI(simplexNumber, dimension + 1);
-      UnsignedInteger facetIndex = 0;
+      Collection<Indices> simplexColl;
       for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
       {
         auto h = f->facet_begin();
@@ -211,19 +200,27 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           }
           ++ h;
         }
+
         if (ok)
         {
           h = f->facet_begin();
-          simplicesI(facetIndex, 0) = apexIndex;
+          Indices simplex(dimension + 1);
+          simplex[0] = apexIndex;
           for (UnsignedInteger j = 0; j < dimension; ++ j)
           {
-            simplicesI(facetIndex, j + 1) = vertexToIndexMap[h->vertex()]; 
+            simplex[j + 1] = vertexToIndexMap[h->vertex()];
             ++ h;
           }
-          ++ facetIndex;
+#if 0
+          // filter out small simplex
+          const Mesh simplexMesh(verticesI, IndicesCollection(Collection<Indices>(1, simplex)));
+          if (!(simplexMesh.getVolume() > SpecFunc::Precision))
+            continue;
+#endif
+          simplexColl.add(simplex);
         }
       }
-      result.add(Mesh(verticesI, simplicesI));
+      result.add(Mesh(verticesI, IndicesCollection(simplexColl)));
     }
   }
   return result;
