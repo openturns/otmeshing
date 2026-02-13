@@ -112,6 +112,9 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
 
     nef = Nef_polyhedron(poly);
+
+    if (!nef.is_simple())
+      throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
   }
   else if (intrinsicDimension == 3)
   {
@@ -144,9 +147,6 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   }
   else
     throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
-
-  if (!nef.is_simple())
-    throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
 
   CGAL::convex_decomposition_3(nef);
 
