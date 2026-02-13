@@ -1,6 +1,8 @@
 %feature("docstring") OTMESHING::ConvexHullMesher
 "Meshing of the convex hull of a set of points.
 
+Yields a surface mesh of the convex hull (of intrinsic dimension d-1).
+
 Examples
 --------
 >>> import openturns as ot

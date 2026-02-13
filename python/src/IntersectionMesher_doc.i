@@ -65,3 +65,21 @@ Returns
 recompress : bool
     Whether to eliminate duplicate vertices.
 "
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::IntersectionMesher::CompressMesh
+"Deduplicate mesh vertices.
+
+A k-D tree radius search is used to filter out duplicate vertices.
+
+Parameters
+----------
+mesh : :py:class:`openturns.Mesh`
+    A mesh.
+
+Returns
+-------
+compressedMesh : :py:class:`openturns.Mesh`
+    The crompressed mesh.
+"
