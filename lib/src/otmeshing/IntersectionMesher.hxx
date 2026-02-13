@@ -1,6 +1,6 @@
 //                                               -*- C++ -*-
 /**
- *  @brief Polygon meshing algorithm
+ *  @brief Intersection meshing algorithm
  *
  *  Copyright 2005-2026 Airbus-EDF-IMACS-ONERA-Phimeca
  *
@@ -18,8 +18,8 @@
  *  along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef OTMESHING_POLYGONMESHER_HXX
-#define OTMESHING_POLYGONMESHER_HXX
+#ifndef OTMESHING_INTERSECTIONMESHER_HXX
+#define OTMESHING_INTERSECTIONMESHER_HXX
 
 #include <openturns/Mesh.hxx>
 #include "otmeshing/otmeshingprivate.hxx"
@@ -28,19 +28,20 @@ namespace OTMESHING
 {
 
 /**
- * @class PolygonMesher
+ * @class IntersectionMesher
  */
-class OTMESHING_API PolygonMesher
+class OTMESHING_API IntersectionMesher
   : public OT::PersistentObject
 {
   CLASSNAME
 public:
+  typedef OT::Collection<OT::Mesh> MeshCollection;
 
   /** Default constructor */
-  PolygonMesher();
+  IntersectionMesher();
 
    /** Virtual constructor */
-  PolygonMesher * clone() const override;
+  IntersectionMesher * clone() const override;
 
   /** String converter */
   OT::String __repr__() const override;
@@ -48,8 +49,15 @@ public:
   /** String converter */
   OT::String __str__(const OT::String & offset = "") const override;
 
-  /** Generate mesh */
-  virtual OT::Mesh build(const OT::Sample & points) const;
+  /** intersection */
+  virtual OT::Mesh build(const MeshCollection & coll) const;
+
+  /** intersection of convexes */
+  virtual OT::Mesh buildConvex(const MeshCollection & coll) const;
+
+  /** Recompression flag accessor */
+  void setRecompress(const OT::Bool recompress);
+  OT::Bool getRecompress() const;
 
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
@@ -58,10 +66,13 @@ public:
   void load(OT::Advocate & adv) override;
 
 protected:
+  OT::Mesh build2(const OT::Mesh & mesh1, const OT::Mesh & mesh2) const;
+  OT::Mesh build2Convex(const OT::Mesh & mesh1, const OT::Mesh & mesh2) const;
 
+  OT::Bool recompress_ = true;
 private:
 
-}; /* class PolygonMesher */
+}; /* class IntersectionMesher */
 
 }
 

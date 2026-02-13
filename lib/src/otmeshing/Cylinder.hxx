@@ -1,6 +1,6 @@
 //                                               -*- C++ -*-
 /**
- *  @brief Polygon meshing algorithm
+ *  @brief Cylinder
  *
  *  Copyright 2005-2026 Airbus-EDF-IMACS-ONERA-Phimeca
  *
@@ -18,8 +18,8 @@
  *  along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef OTMESHING_POLYGONMESHER_HXX
-#define OTMESHING_POLYGONMESHER_HXX
+#ifndef OTMESHING_CYLINDER_HXX
+#define OTMESHING_CYLINDER_HXX
 
 #include <openturns/Mesh.hxx>
 #include "otmeshing/otmeshingprivate.hxx"
@@ -28,19 +28,25 @@ namespace OTMESHING
 {
 
 /**
- * @class PolygonMesher
+ * @class Cylinder
  */
-class OTMESHING_API PolygonMesher
+class OTMESHING_API Cylinder
   : public OT::PersistentObject
 {
   CLASSNAME
 public:
 
   /** Default constructor */
-  PolygonMesher();
+  Cylinder();
+
+  /** Parameters constructor */
+  Cylinder(const OT::Mesh & base,
+           const OT::Interval & extension,
+           const OT::Indices & injection,
+           const OT::UnsignedInteger discretization);
 
    /** Virtual constructor */
-  PolygonMesher * clone() const override;
+  Cylinder * clone() const override;
 
   /** String converter */
   OT::String __repr__() const override;
@@ -48,8 +54,14 @@ public:
   /** String converter */
   OT::String __str__(const OT::String & offset = "") const override;
 
-  /** Generate mesh */
-  virtual OT::Mesh build(const OT::Sample & points) const;
+  /** Vertices accessor */
+  OT::Sample getVertices() const;
+
+  /** BBox accessor */
+  OT::Interval getBoundingBox() const;
+
+  /** Volume accessor */
+  OT::Scalar getVolume() const;
 
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
@@ -58,10 +70,22 @@ public:
   void load(OT::Advocate & adv) override;
 
 protected:
+  void initialize();
 
+  OT::Point combine(const OT::Point & pBase, const OT::Point & pExtension) const;
+  
+  OT::Mesh base_;
+  OT::Interval extension_;
+  OT::Indices injection_;
+  OT::UnsignedInteger discretization_;
+
+  OT::UnsignedInteger baseDimension_ = 0;
+  OT::UnsignedInteger extensionDimension_ = 0;
+  OT::UnsignedInteger dimension_ = 0;
+  OT::Indices complement_;
 private:
 
-}; /* class PolygonMesher */
+}; /* class Cylinder */
 
 }
 

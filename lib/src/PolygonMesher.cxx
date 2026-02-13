@@ -120,4 +120,16 @@ Mesh PolygonMesher::build(const Sample & points) const
   return Mesh(points, simplices);
 }
 
+/* Method save() stores the object through the StorageManager */
+void PolygonMesher::save(Advocate & adv) const
+{
+  PersistentObject::save(adv);
+}
+
+/* Method load() reloads the object from the StorageManager */
+void PolygonMesher::load(Advocate & adv)
+{
+  PersistentObject::load(adv);
+}
+
 }
