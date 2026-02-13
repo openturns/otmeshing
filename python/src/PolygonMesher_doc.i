@@ -18,8 +18,10 @@ Triangulate a parallelogram:
 Parameters
 ----------
 polyline : :py:class:`openturns.Sample`
-    An ordered set of points defining a 2-d polygon, possibly non-convex.
+    An ordered set of vertices defining a 2-d polygon, possibly non-convex.
     The polygon must be simple (with no redundant vertex).
+    The vertices can be of dimension greater than 2,
+    but the polygon itsef should be within a single plane.
 
 Returns
 -------
