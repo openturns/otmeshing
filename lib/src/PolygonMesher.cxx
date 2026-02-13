@@ -82,17 +82,23 @@ Mesh PolygonMesher::build(const Sample & points) const
   const UnsignedInteger dimension = points.getDimension();
   const UnsignedInteger size = points.getSize();
 
-  if (dimension != 2)
-    throw InvalidArgumentException(HERE) << "PolygonMesher expected points of dimension 2, got " << dimension;
   if (size < 3)
     throw InvalidArgumentException(HERE) << "PolygonMesher expected points of size >=3, got " << size;
+
+  const Point stddev(points.computeStandardDeviation());
+  Indices intrinsic;
+  for (UnsignedInteger j = 0; j < dimension; ++ j)
+    if (stddev[j] > 0.0)
+      intrinsic.add(j);
+  if (intrinsic.getSize() != 2)
+    throw InvalidArgumentException(HERE) << "PolygonMesher expected an intrinsic dimension of 2, got " << size;
 
   // the indices are not stored so we need to query a map
   std::vector<Point_2> points2;
   std::unordered_map<Point_2, UnsignedInteger> vertexToIndexMap;
   for (UnsignedInteger i = 0; i < size; ++ i)
   {
-    const Point_2 p2(points(i, 0), points(i, 1));
+    const Point_2 p2(points(i, intrinsic[0]), points(i, intrinsic[1]));
     points2.push_back(p2);
     // A polygon is called simple if there is no pair of nonconsecutive edges sharing a point
     if (vertexToIndexMap.count(p2) > 0)
@@ -108,7 +114,7 @@ Mesh PolygonMesher::build(const Sample & points) const
   decomposition2(polygon, std::back_inserter(triangles));
 
   // retrieve triangles
-  IndicesCollection simplices(triangles.size(), 3);
+  IndicesCollection simplices(triangles.size(), dimension + 1);
   for (UnsignedInteger i = 0; i < triangles.size(); ++ i)
   {
     for (UnsignedInteger j = 0; j < 3; ++ j)
@@ -116,6 +122,9 @@ Mesh PolygonMesher::build(const Sample & points) const
       const Point_2 & vh = triangles[i].vertex(j);
       simplices(i, j) = vertexToIndexMap[vh];
     }
+    // repeat last index to mark intrinsic dimension
+    for (UnsignedInteger j = 3; j <= dimension; ++ j)
+      simplices(i, j) = simplices(i, 2);
   }
   return Mesh(points, simplices);
 }
