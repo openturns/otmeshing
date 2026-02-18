@@ -154,8 +154,42 @@ String IntersectionMesher::__str__(const String & ) const
 Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
-  if (!size)
-    throw InvalidArgumentException(HERE) << "IntersectionMesher expected a non-empty collection";
+  if (size == 0)
+    return Mesh(Sample(0, 0));
+  else if (size == 1)
+    return coll[0];
+
+  const UnsignedInteger dimension = coll[0].getDimension();
+  if ((coll.getSize() == 2) && (dimension == 3000000)) // TODO: enable this
+  {
+    ConvexDecompositionMesher convexDecompositionMesher;
+    const Collection<Mesh> decomposition1(convexDecompositionMesher.build(coll[0]));
+    const Collection<Mesh> decomposition2(convexDecompositionMesher.build(coll[1]));
+    Sample vertices(0, dimension);
+    Collection<Indices> simplexColl;
+    for (UnsignedInteger i1 = 0; i1 < decomposition1.getSize(); ++ i1)
+    {
+      for (UnsignedInteger i2 = 0; i2 < decomposition2.getSize(); ++ i2)
+      {
+        // TODO: parallelize ?
+        const Mesh intersection12(buildConvex(Collection<Mesh>({decomposition1[i1], decomposition2[i2]})));
+        if (intersection12.getSimplicesNumber() == 0)
+          continue;
+
+        vertices.add(intersection12.getVertices());
+        const IndicesCollection simplicesI(intersection12.getSimplices());
+        for (UnsignedInteger k = 0; k < simplicesI.getSize(); ++ k)
+        {
+          simplexColl.add(Indices(simplicesI.getImplementation()->cbegin_at(k),
+                                  simplicesI.getImplementation()->cbegin_at(k) + dimension + 1));
+        }
+      }
+    }
+    Mesh result(vertices, IndicesCollection(simplexColl));
+    if (recompress_)
+      result = CompressMesh(result);
+    return result;
+  } // dim=3
 
   Collection<Mesh> todo(coll);
   while (todo.getSize() > 1)
@@ -266,36 +300,6 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
   const UnsignedInteger dimension = mesh1.getDimension();
   if (mesh2.getDimension() != dimension)
     throw InvalidArgumentException(HERE) << "IntersectionMesher expected meshes of same dimension";
-
-  if (dimension == 3000)
-  {
-    ConvexDecompositionMesher convexDecompositionMesher;
-    const Collection<Mesh> decomposition1(convexDecompositionMesher.build(mesh1));
-    const Collection<Mesh> decomposition2(convexDecompositionMesher.build(mesh2));
-    Sample vertices(0, dimension);
-    Collection<Indices> simplexColl;
-    for (UnsignedInteger i1 = 0; i1 < decomposition1.getSize(); ++ i1)
-    {
-      for (UnsignedInteger i2 = 0; i2 < decomposition2.getSize(); ++ i2)
-      {
-        const Mesh intersection12(build2Convex(decomposition1[i1], decomposition2[i2]));
-        if (intersection12.getSimplicesNumber() == 0)
-          continue;
-
-        vertices.add(intersection12.getVertices());
-        const IndicesCollection simplicesI(intersection12.getSimplices());
-        for (UnsignedInteger k = 0; k < simplicesI.getSize(); ++ k)
-        {
-          simplexColl.add(Indices(simplicesI.getImplementation()->cbegin_at(k),
-                                  simplicesI.getImplementation()->cbegin_at(k) + dimension + 1));
-        }
-      }
-    }
-    Mesh result(vertices, IndicesCollection(simplexColl));
-    if (recompress_)
-      result = CompressMesh(result);
-    return result;
-  } // dim=3
 
 #ifdef OPENTURNS_HAVE_CDDLIB
   const IndicesCollection simplices1(mesh1.getSimplices());
@@ -418,7 +422,7 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
         {
           // only one simplex
           Indices simplex(dimension + 1);
-          simplex.fill(verticesSize);
+          simplex.fill(verticesSize); // orientation may be incorrect
           simplexColl.add(simplex);
           vertices.add(intersectionVertices);
         }
@@ -463,93 +467,98 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
 Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
-  if (!size)
-    throw InvalidArgumentException(HERE) << "IntersectionMesher expected a non-empty collection";
+  if (size == 0)
+    return Mesh(Sample(0, 0));
+  else if (size == 1)
+    return coll[0];
 
-  Collection<Mesh> todo(coll);
-  while (todo.getSize() > 1)
-  {
-    Collection<Mesh> done(todo.getSize() / 2);
-    // TODO: parallelize ?
-    for (UnsignedInteger i = 0; i < todo.getSize() / 2; ++ i)
-      done[i] = build2Convex(todo[2 * i], todo[2 * i + 1]);
-
-    // report odd element
-    if (todo.getSize() % 2)
-      done.add(todo[todo.getSize() - 1]);
-
-    todo = done;
-  }
-  return todo[0];
-}
-
-
-Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) const
-{
-  const UnsignedInteger dimension = mesh1.getDimension();
-  if (mesh2.getDimension() != dimension)
-    throw InvalidArgumentException(HERE) << "IntersectionMesher expected meshes of same dimension";
+  const UnsignedInteger dimension = coll[0].getDimension();
+  for (UnsignedInteger i = 1; i < size; ++ i)
+    if (coll[i].getDimension() != dimension)
+      throw InvalidArgumentException(HERE) << "IntersectionMesher expected meshes of same dimension";
 
 #ifdef OPENTURNS_HAVE_CDDLIB
-  const Sample vertices1(mesh1.getVertices());
-  const UnsignedInteger nv1 = vertices1.getSize();
-  const Sample vertices2(mesh2.getVertices());
-  const UnsignedInteger nv2 = vertices2.getSize();
-
   Sample vertices(0, dimension);
   CloudMesher cloudMesher;
   Collection<Indices> simplexColl;
+  Point lower1(dimension, -SpecFunc::Infinity);
+  Point upper1(dimension, SpecFunc::Infinity);
+  UnsignedInteger prunedNumber = 0;
 
   // initialize cddlib
   dd_ErrorType err = dd_NoError;
   dd_set_global_constants();
 
-  // allocate V-representation
-  dd_MatrixPtr m1 = dd_CreateMatrix(nv1, dimension + 1);
-  dd_SetMatrixRepresentationType(m1, dd_Generator);
-  dd_MatrixPtr m2 = dd_CreateMatrix(nv2, dimension + 1);
-  dd_SetMatrixRepresentationType(m2, dd_Generator);
-  for (UnsignedInteger j = 0; j < nv1; ++ j)
-    // homogeneous coordinate
-    dd_set_d(m1->matrix[j][0], 1.0);  
-  for (UnsignedInteger j = 0; j < nv2; ++ j)
-    // homogeneous coordinate
-    dd_set_d(m2->matrix[j][0], 1.0);
+  // allocate H-representation of intersection
+  dd_MatrixPtr intersectionH = dd_CreateMatrix(0, dimension + 1);
+  dd_SetMatrixRepresentationType(intersectionH, dd_Inequality);
 
-  for (UnsignedInteger i1 = 0; i1 < nv1; ++ i1)
+  // for each convex
+  for (UnsignedInteger i = 0; i < size; ++ i)
   {
+    const Sample vertices1(coll[i].getVertices());
+    const UnsignedInteger nv1 = vertices1.getSize();
+
+    // bbox pruning
+    const Point min1(vertices1.getMin());
+    const Point max1(vertices1.getMax());
+    Bool toSkip = false;
     for (UnsignedInteger k = 0; k < dimension; ++ k)
-      dd_set_d(m1->matrix[i1][k + 1], vertices1(i1, k));
-  }
-  dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
-  if (err != dd_NoError)
-    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 1: " << cdd_error_to_string(err);
-
-  // Convert V-representation to H-representation (inequalities)
-  dd_MatrixPtr h1 = dd_CopyInequalities(p1);
-
-  for (UnsignedInteger i2 = 0; i2 < nv2; ++ i2)
-  {
+    {
+      toSkip = std::max(lower1[k], min1[k]) >= std::min(upper1[k], max1[k]);
+      if (toSkip)
+        break;
+    }
+    if (toSkip)
+    {
+      ++ prunedNumber;
+      continue;
+    }
     for (UnsignedInteger k = 0; k < dimension; ++ k)
-      dd_set_d(m2->matrix[i2][k + 1], vertices2(i2, k));
-  } // Faces of the simplex
-  dd_PolyhedraPtr p2 = dd_DDMatrix2Poly(m2, &err);
-  if (err != dd_NoError)
-    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 2: " << cdd_error_to_string(err);
+    {
+      lower1[k] = std::max(lower1[k], min1[k]);
+      upper1[k] = std::min(upper1[k], max1[k]);
+    }
 
-  // Convert V-representation to H-representation (inequalities)
-  dd_MatrixPtr h2 = dd_CopyInequalities(p2);
-  dd_FreePolyhedra(p2);
+    // allocate V-representation
+    dd_MatrixPtr m1 = dd_CreateMatrix(nv1, dimension + 1);
+    dd_SetMatrixRepresentationType(m1, dd_Generator);
+    for (UnsignedInteger i1 = 0; i1 < nv1; ++ i1)
+    {
+      // homogeneous coordinate
+      dd_set_d(m1->matrix[i1][0], 1.0);
+      for (UnsignedInteger k = 0; k < dimension; ++ k)
+      {
+        dd_set_d(m1->matrix[i1][k + 1], vertices1(i1, k));
+      }
+    }
 
-  // Combine inequalities to compute intersection
-  dd_MatrixAppendTo(&h2, h1);
-  dd_SetMatrixRepresentationType(h2, dd_Inequality);
+    dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
+    if (err != dd_NoError)
+      throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 1: " << cdd_error_to_string(err);
+
+    // Convert V-representation to H-representation (inequalities)
+    dd_MatrixPtr h1 = dd_CopyInequalities(p1);
+
+    // Combine inequalities
+    dd_MatrixAppendTo(&intersectionH, h1);
+
+    // free memory
+    dd_FreeMatrix(m1);
+    dd_FreePolyhedra(p1);
+    dd_FreeMatrix(h1);
+
+  } // i loop
+
+  // empty intersection
+  if (size - prunedNumber == 1)
+    return Mesh(Sample(0, dimension));
 
   // Convert intersection back to V-representation
-  dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(h2, &err);
+  dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(intersectionH, &err);
   if (err != dd_NoError)
     throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection: " << cdd_error_to_string(err);
-  dd_FreeMatrix(h2);
+  dd_FreeMatrix(intersectionH);
 
   // retrieve vertices
   dd_MatrixPtr gen = dd_CopyGenerators(intersectionV);
@@ -577,7 +586,7 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
     {
       // only one simplex
       Indices simplex(dimension + 1);
-      simplex.fill(verticesSize);
+      simplex.fill(verticesSize); // orientation may be incorrect
       simplexColl.add(simplex);
       vertices.add(intersectionVertices);
     }
@@ -598,12 +607,8 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
       vertices.add(intersectionMesh.getVertices());
     } // else V>d+1, decompose into several simplices
   } // if (intersectionVerticesNumber >= (dimension + 1))
-  dd_FreeMatrix(h1);
-  dd_FreePolyhedra(p1);
 
-  // free cddlib objects
-  dd_FreeMatrix(m1);
-  dd_FreeMatrix(m2);
+  dd_FreeMatrix(gen);
   dd_free_global_constants();
   
   return Mesh(vertices, IndicesCollection(simplexColl));

@@ -26,6 +26,27 @@ for compression in [False, True]:
             print(bmesh)
             # bmesh.exportToVTKFile("/tmp/boundary.vtk")
 
+# empty/self intersection
+dim = 3
+mesh1 = ot.IntervalMesher([1] * dim).build(ot.Interval([0.0] * dim, [1.0] * dim))
+mesh2 = ot.IntervalMesher([1] * dim).build(ot.Interval([3.0] * dim, [4.0] * dim))
+intersection = mesher.build([mesh1, mesh2])
+volume = intersection.getVolume()
+print(f"{dim=} {compression=} intersection={intersection} {volume=:.3g}")
+ott.assert_almost_equal(volume, 0.0)
+intersection = mesher.build([])
+volume = intersection.getVolume()
+print(f"{dim=} {compression=} intersection={intersection} {volume=:.3g}")
+ott.assert_almost_equal(volume, 0.0)
+intersection = mesher.build([mesh1])
+volume = intersection.getVolume()
+print(f"{dim=} {compression=} intersection={intersection} {volume=:.3g}")
+assert volume == mesh1.getVolume()
+intersection = mesher.build([mesh1, mesh1])
+volume = intersection.getVolume()
+print(f"{dim=} {compression=} intersection={intersection} {volume=:.3g}")
+ott.assert_almost_equal(volume, mesh1.getVolume())
+
 # 3-d example
 N = 10
 M = 2
@@ -81,3 +102,25 @@ for dim in range(2, 6):
         volume = intersection.getVolume()
         print(f"{dim=} {N=} intersection={intersection} {volume=:.3g}")
         ott.assert_almost_equal(volume, 2.0**dim)
+
+# empty/self convex intersection
+dim = 3
+discr = [2] * dim
+mesh1 = ot.IntervalMesher(discr).build(ot.Interval([0.0] * dim, [1.0] * dim))
+mesh2 = ot.IntervalMesher(discr).build(ot.Interval([3.0] * dim, [4.0] * dim))
+intersection = mesher.buildConvex([mesh1, mesh2])
+volume = intersection.getVolume()
+print(f"{dim=} intersection={intersection} {volume=:.3g}")
+ott.assert_almost_equal(volume, 0.0)
+intersection = mesher.buildConvex([])
+volume = intersection.getVolume()
+print(f"{dim=} intersection={intersection} {volume=:.3g}")
+ott.assert_almost_equal(volume, 0.0)
+intersection = mesher.buildConvex([mesh1])
+volume = intersection.getVolume()
+print(f"{dim=} intersection={intersection} {volume=:.3g}")
+assert volume == mesh1.getVolume()
+intersection = mesher.buildConvex([mesh1, mesh1])
+volume = intersection.getVolume()
+print(f"{dim=} intersection={intersection} {volume=:.3g}")
+ott.assert_almost_equal(volume, mesh1.getVolume())
