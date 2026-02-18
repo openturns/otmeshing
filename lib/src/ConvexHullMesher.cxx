@@ -24,11 +24,11 @@
 #include <CGAL/Epick_d.h>
 #include <CGAL/Triangulation.h>
 
-using DefaultTriangulation = CGAL::Triangulation<CGAL::Epick_d<CGAL::Dynamic_dimension_tag> >;
-
 #ifdef OPENTURNS_HAVE_QHULL
 #include "libqhull_r/qhull_ra.h"
 #endif
+
+using DefaultTriangulation = CGAL::Triangulation<CGAL::Epick_d<CGAL::Dynamic_dimension_tag> >;
 
 using namespace OT;
 
@@ -136,13 +136,12 @@ Mesh ConvexHullMesher::build(const Sample & points) const
   if (size < dimension + 1)
     throw InvalidArgumentException(HERE) << "ConvexHullMesher expected a size of at least " << dimension + 1 << " got " << size;
   Sample vertices(0, dimension);
-  IndicesCollection simplices;
   if (dimension == 1)
   {
     // special case for dim=1 to avoid special handling in the generic part
     vertices.add(points.getMin());
     vertices.add(points.getMax());
-    simplices = IndicesCollection(1, dimension + 1);
+    IndicesCollection simplices(1, dimension + 1);
     simplices(0, 1) = 1;
     return Mesh(vertices, simplices);
   }
@@ -155,7 +154,7 @@ Mesh ConvexHullMesher::build(const Sample & points) const
   qh_zero(qh, stderr);
 
   // Run Qhull
-  const String qhull_cmd("qhull Qt Qx"); // options: triangulated hull + exact arithmetics
+  const String qhull_cmd("qhull Qt Qx"); // options: triangulated output + deterministic output
   int rc = qh_new_qhull(qh, dimension, size,
                         const_cast<Scalar*>(points.getImplementation()->data()),
                         False, /* ismalloc */
@@ -176,44 +175,39 @@ Mesh ConvexHullMesher::build(const Sample & points) const
   {
     if (!vertex->deleted)
     {
+      // qh_pointid gives indices wrt the original input sample
+      const SignedInteger inputIdx = qh_pointid(qh, vertex->point);
+
       Point point(dimension);
       // assume vertex->point is an array of double
       std::copy(vertex->point, vertex->point + dimension, point.begin());
       vertices.add(point);
 
-      // qh_pointid gives indices wrt the original input sample
-      const int inputIdx = qh_pointid(qh, vertex->point);
       inputIndexToHullIndex[inputIdx] = i;
       ++ i;
     }
   }
 
   // build the faces
+  Collection<Indices> simplexColl;
   facetT *facet = NULL;
-  UnsignedInteger facetCount = 0;
-  FORALLfacets
-  {
-    if (!facet->upperdelaunay) // For 2D, this removes the "top" duplicate
-      ++ facetCount;
-  }
-  simplices = IndicesCollection(facetCount, dimension + 1);
-  UnsignedInteger iS = 0;
   FORALLfacets
   {
     if (!facet->upperdelaunay) /* skip upper facets in 2D */
     {
+      Indices simplex(dimension + 1);
       UnsignedInteger j = 0;
       FOREACHvertex_(facet->vertices)
       {
-        const int hullIdx = qh_pointid(qh, vertex->point);
-        simplices(iS, j) = inputIndexToHullIndex[hullIdx];
+        const SignedInteger hullIdx = qh_pointid(qh, vertex->point);
+        simplex[j] = inputIndexToHullIndex[hullIdx];
         ++ j;
       }
 
       // repeat the last value to mark the intrinsic dimension
-      simplices(iS, dimension) = simplices(iS, dimension - 1);
+      simplex[dimension] = simplex[dimension - 1];
+      simplexColl.add(simplex);
     }
-    ++ iS;
   }
 
   // cleanup
@@ -223,7 +217,7 @@ Mesh ConvexHullMesher::build(const Sample & points) const
   if (curlong || totlong)
     throw InternalException(HERE) << "qh_memfreeshort: did not free " << totlong <<" bytes (" << curlong << " blocks)";
 
-  return Mesh(vertices, simplices);
+  return Mesh(vertices, IndicesCollection(simplexColl));
 #else
   return buildConvexHull<DefaultTriangulation>(points);
 #endif
