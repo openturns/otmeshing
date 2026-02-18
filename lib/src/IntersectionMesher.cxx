@@ -606,13 +606,7 @@ Mesh IntersectionMesher::build2Convex(const Mesh & mesh1, const Mesh & mesh2) co
   dd_FreeMatrix(m2);
   dd_free_global_constants();
   
-  // copy simplices
-  IndicesCollection simplices(simplexColl.getSize(), dimension + 1);
-  for (UnsignedInteger i = 0; i < simplexColl.getSize(); ++ i)
-    for (UnsignedInteger j = 0; j <= dimension; ++ j)
-      simplices(i, j) = simplexColl[i][j];
-
-  return Mesh(vertices, simplices);
+  return Mesh(vertices, IndicesCollection(simplexColl));
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
 #endif
