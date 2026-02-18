@@ -570,16 +570,16 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
     // retrieve vertices
     Sample intersectionVertices(0, dimension);
     for (UnsignedInteger i = 0; i < intersectionVerticesNumber; ++i)
-      {
-        // First entry = 1 -> point, 0 -> ray
-        if (dd_get_d(gen->matrix[i][0]) != 1.0)
-          throw InternalException(HERE) << "assumed only points, no rays";
+    {
+      // First entry = 1 -> point, 0 -> ray
+      if (dd_get_d(gen->matrix[i][0]) != 1.0)
+        throw InternalException(HERE) << "assumed only points, no rays";
 
-        Point vertex(dimension);
-        for (UnsignedInteger j = 0; j < dimension; ++ j)
-          vertex[j] = dd_get_d(gen->matrix[i][j + 1]);
-        intersectionVertices.add(vertex);
-      }
+      Point vertex(dimension);
+      for (UnsignedInteger j = 0; j < dimension; ++ j)
+        vertex[j] = dd_get_d(gen->matrix[i][j + 1]);
+      intersectionVertices.add(vertex);
+    }
 
     // build simplices
     if (intersectionVerticesNumber == (dimension + 1))
@@ -615,6 +615,16 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
 #endif
+}
+
+Mesh IntersectionMesher::buildCylinder(const Collection<Cylinder> & coll) const
+{
+  CloudMesher mesher;
+  const UnsignedInteger size = coll.getSize();
+  Collection<Mesh> collMesh(size);
+  for (UnsignedInteger i = 0; i < size; ++ i)
+    collMesh[i] = mesher.build(coll[i].getVertices());
+  return build(collMesh);
 }
 
 /* Recompression flag accessor */

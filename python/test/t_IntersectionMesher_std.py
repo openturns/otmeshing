@@ -86,7 +86,7 @@ mesh2 = otmeshing.CloudMesher().build(cyl2.getVertices())
 # mesh1.exportToVTKFile("mesh1.vtk")
 # mesh2.exportToVTKFile("mesh2.vtk")
 
-inter12 = otmeshing.IntersectionMesher().build([mesh1, mesh2])
+inter12 = otmeshing.IntersectionMesher().buildCylinder([cyl1, cyl2])
 volume = inter12.getVolume()
 print("inter volume=", volume)
 ott.assert_almost_equal(volume, 1.462974)

@@ -23,6 +23,7 @@
 
 #include <openturns/Mesh.hxx>
 #include "otmeshing/otmeshingprivate.hxx"
+#include "otmeshing/Cylinder.hxx"
 
 namespace OTMESHING
 {
@@ -36,6 +37,7 @@ class OTMESHING_API IntersectionMesher
   CLASSNAME
 public:
   typedef OT::Collection<OT::Mesh> MeshCollection;
+  typedef OT::Collection<Cylinder> CylinderCollection;
 
   /** Default constructor */
   IntersectionMesher();
@@ -54,6 +56,9 @@ public:
 
   /** intersection of convexes */
   virtual OT::Mesh buildConvex(const MeshCollection & coll) const;
+
+  /** intersection of cylinders */
+  virtual OT::Mesh buildCylinder(const CylinderCollection & coll) const;
 
   /** Recompression flag accessor */
   void setRecompress(const OT::Bool recompress);

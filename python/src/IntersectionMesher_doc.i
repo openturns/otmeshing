@@ -46,6 +46,21 @@ mesh : :py:class:`openturns.Mesh`
 
 // ---------------------------------------------------------------------
 
+%feature("docstring") OTMESHING::IntersectionMesher::buildCylinder
+"Generate the mesh of the intersection of cylinders.
+
+Parameters
+----------
+coll : sequence of :class:`~otmeshing.Cylinder`
+    Input cylinders.
+
+Returns
+-------
+mesh : :py:class:`openturns.Mesh`
+    The mesh of the intersection."
+
+// ---------------------------------------------------------------------
+
 %feature("docstring") OTMESHING::IntersectionMesher::setRecompress
 "Recompression flag accessor.
 
