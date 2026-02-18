@@ -25,6 +25,10 @@
 #include <CGAL/Triangulation.h>
 #include <CGAL/Delaunay_triangulation.h>
 
+#if 0
+#include "libqhull_r/qhull_ra.h"
+#endif
+
 using DefaultTriangulation = CGAL::Triangulation<CGAL::Epick_d<CGAL::Dynamic_dimension_tag> > ;
 using DelaunayTriangulation = CGAL::Delaunay_triangulation<CGAL::Epick_d<CGAL::Dynamic_dimension_tag> >;
 
@@ -105,28 +109,104 @@ Mesh CloudMesher::build(const Sample & points) const
   if (size < dimension + 1)
     throw InvalidArgumentException(HERE) << "CloudMesher expected a size of at least " << dimension + 1 << " got " << size;
   Sample vertices(0, points.getDimension());
-  IndicesCollection simplices;
   if (dimension == 1)
   {
     // special case for dim=1 to avoid special handling in the generic part
     vertices.add(points.getMin());
     vertices.add(points.getMax());
-    simplices = IndicesCollection(1, dimension + 1);
+    IndicesCollection simplices(1, dimension + 1);
     simplices(0, 1) = 1;
     return Mesh(vertices, simplices);
   }
-  else
+
+#if 0
+  QHULL_LIB_CHECK
+
+  // Create qhull context
+  qhT qh_qh;
+  qhT *qh = &qh_qh;
+  qh_zero(qh, stderr);
+
+  // Run Qhull
+  const String qhull_cmd("qhull d Qt Qx Qz"); // options: delaunay + triangulated output + deterministic output + infinity point
+  int rc = qh_new_qhull(qh, dimension, size,
+                        const_cast<Scalar*>(points.getImplementation()->data()),
+                        False, /* ismalloc */
+                        const_cast<char*>(qhull_cmd.c_str()),
+                        NULL, NULL);
+
+  if (rc != 0)
   {
-    switch (triangulationMethod_)
+    qh_freeqhull(qh, !qh_ALL);
+    throw InternalException(HERE) << "qh_new_qhull exit code: " << rc;
+  }
+
+  // build the vertices
+  Indices inputIndexToHullIndex(size, size);
+  vertexT *vertex = NULL, **vertexp = NULL;
+  UnsignedInteger i = 0;
+  FORALLvertices
+  {
+    if (!vertex->deleted)
     {
-      case BASIC:
-        return buildTriangulation<DefaultTriangulation>(points);
-      case DELAUNAY:
-        return buildTriangulation<DelaunayTriangulation>(points);
-      default:
-        throw InvalidArgumentException(HERE) << "Unknown triangulation method: " << triangulationMethod_;
+      // qh_pointid gives indices wrt the original input sample
+      const SignedInteger inputIdx = qh_pointid(qh, vertex->point);
+
+      // infinite vertex (Qz option)
+      if (static_cast<UnsignedInteger>(inputIdx) == size)
+        continue;
+
+      Point point(dimension);
+      // assume vertex->point is an array of double
+      std::copy(vertex->point, vertex->point + dimension, point.begin());
+      vertices.add(point);
+
+      inputIndexToHullIndex[inputIdx] = i;
+      ++ i;
     }
   }
+
+  // build the faces
+  Collection<Indices> simplexColl;
+  Indices used(vertices.getSize());
+  facetT *facet = NULL;
+  FORALLfacets
+  {
+    if (!facet->upperdelaunay) /* skip upper facets in 2D */
+    {
+      Indices simplex(dimension + 1);
+      UnsignedInteger j = 0;
+      FOREACHvertex_(facet->vertices)
+      {
+        const SignedInteger hullIdx = qh_pointid(qh, vertex->point);
+        simplex[j] = inputIndexToHullIndex[hullIdx];
+        used[simplex[j]] = 1;
+        ++ j;
+      }
+
+      simplexColl.add(simplex);
+    }
+  }
+
+  // cleanup
+  qh_freeqhull(qh, !qh_ALL);
+  int curlong = 0, totlong = 0;
+  qh_memfreeshort(qh, &curlong, &totlong);
+  if (curlong || totlong)
+    throw InternalException(HERE) << "qh_memfreeshort: did not free " << totlong <<" bytes (" << curlong << " blocks)";
+
+  return Mesh(vertices, IndicesCollection(simplexColl));
+#else
+  switch (triangulationMethod_)
+  {
+    case BASIC:
+      return buildTriangulation<DefaultTriangulation>(points);
+    case DELAUNAY:
+      return buildTriangulation<DelaunayTriangulation>(points);
+    default:
+      throw InvalidArgumentException(HERE) << "Unknown triangulation method: " << triangulationMethod_;
+  }
+#endif
 }
 
 /* String converter */
