@@ -65,4 +65,4 @@ private:
 
 }
 
-#endif /* OPENTURNS_INTERVALMESHER_HXX */
+#endif /* OTMESHING_POLYGONMESHER_HXX */

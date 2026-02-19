@@ -89,4 +89,4 @@ private:
 
 }
 
-#endif /* OPENTURNS_INTERVALMESHER_HXX */
+#endif /* OTMESHING_CYLINDER_HXX */
