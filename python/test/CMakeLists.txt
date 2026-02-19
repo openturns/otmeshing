@@ -44,6 +44,7 @@ if (cddlib_FOUND)
   ot_pyinstallcheck_test (IntersectionMesher_std IGNOREOUT)
   ot_pyinstallcheck_test (Cylinder_std IGNOREOUT)
 endif ()
+ot_pyinstallcheck_test (MeshDomain2_std IGNOREOUT)
 ot_pyinstallcheck_test (PolygonMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (docstring IGNOREOUT)
 

@@ -12,4 +12,5 @@ API Reference
     ConvexDecompositionMesher
     Cylinder
     IntersectionMesher
+    MeshDomain2
     PolygonMesher
