@@ -69,15 +69,14 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
 {
   const UnsignedInteger dimension = mesh.getDimension();
   const UnsignedInteger intrinsicDimension = mesh.getIntrinsicDimension();
-  if (dimension != 3)
-    throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected dimension=3 got " << dimension;
-
   const Sample vertices(mesh.getVertices());
   const IndicesCollection simplices(mesh.getSimplices());
 
   Nef_polyhedron nef;
 
-  if (intrinsicDimension == 2)
+  Collection<Mesh> result;
+
+  if ((intrinsicDimension == 2) && (dimension == 3))
   {
     // build from the surface mesh
     Polyhedron poly;
@@ -116,7 +115,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
     if (!nef.is_simple())
       throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
   }
-  else if (intrinsicDimension == 3)
+  else if ((intrinsicDimension == 3) && (dimension == 3))
   {
     const Point simplicesVolume(mesh.computeSimplicesVolume());
 
@@ -146,11 +145,21 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
     }
   }
   else
-    throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
+    // Return the list of simplices, based on the same vertices sample to avoid
+    // data copy
+    {
+      const UnsignedInteger dimension = mesh.getDimension();
+      Indices simplex(dimension + 1);
+      for (UnsignedInteger nSimplex = 0; nSimplex < mesh.getSimplicesNumber(); ++nSimplex)
+	{
+	  // Copy the current simplex
+	  std::copy(mesh.getSimplices().begin_at(nSimplex), mesh.getSimplices().end_at(nSimplex), simplex.begin());
+	  result.add(Mesh(mesh.getVertices(), IndicesCollection(1, dimension + 1, simplex)));
+	}
+      return result;
+    }
 
   CGAL::convex_decomposition_3(nef);
-
-  Collection<Mesh> result;
 
   // Extract convex components
 
