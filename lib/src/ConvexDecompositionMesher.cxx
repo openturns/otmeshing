@@ -69,160 +69,185 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
 {
   const UnsignedInteger dimension = mesh.getDimension();
   const UnsignedInteger intrinsicDimension = mesh.getIntrinsicDimension();
-  if (dimension != 3)
-    throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected dimension=3 got " << dimension;
-
   const Sample vertices(mesh.getVertices());
   const IndicesCollection simplices(mesh.getSimplices());
+  Collection<Mesh> result;
+  const Point simplicesVolume(mesh.computeSimplicesVolume());
 
-  Nef_polyhedron nef;
+  // LevelSetMesher can yield almost empty cells
+  // possible workaround with key LevelSetMesher-SolveEquation=False
+  const Scalar smallVolume = simplicesVolume.norm1() * SpecFunc::Precision;
 
-  if (intrinsicDimension == 2)
+  if (dimension == 3)
   {
-    // build from the surface mesh
-    Polyhedron poly;
-    CGAL::Polyhedron_incremental_builder_3<HDS> builder(poly.hds(), true);
-    builder.begin_surface(vertices.getSize(), simplices.getSize());
-    for (UnsignedInteger i = 0; i < vertices.getSize(); ++ i)
+    Nef_polyhedron nef;
+    if (intrinsicDimension == 2)
     {
-      const Point_3 p{vertices(i, 0), vertices(i, 1), vertices(i, 2)};
-      builder.add_vertex(p);
-    }
-    for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
-    {
-      builder.begin_facet();
-      for (UnsignedInteger j = 0; j < dimension; ++ j)
-        builder.add_vertex_to_facet(simplices(i, j));
-      builder.end_facet();
-    }
-    builder.end_surface();
-
-    // we have to check unconnected vertices otherwise older CGAL crashes when converting to Nef_polyhedron
-    if (builder.check_unconnected_vertices())
-    {
-      LOGINFO("ConvexDecompositionMesher detected unconnected vertices, removing");
-      if (!builder.remove_unconnected_vertices())
-        throw InvalidArgumentException(HERE) << "Polyhedron could not remove all unconnected vertices";
-    }
-
-    if (!poly.is_valid(Log::HasDebug()))
-      throw InvalidArgumentException(HERE) << "Polyhedron must be valid";
-
-    if (!poly.is_closed())
-      throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
-
-    nef = Nef_polyhedron(poly);
-
-    if (!nef.is_simple())
-      throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
-  }
-  else if (intrinsicDimension == 3)
-  {
-    const Point simplicesVolume(mesh.computeSimplicesVolume());
-
-    // build from the volumetric mesh
-    for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
-    {
-      // LevelSetMesher can yield almost empty cells
-      // possible workaround with key LevelSetMesher-SolveEquation=False
-      if (!(simplicesVolume[i] > SpecFunc::Precision))
-        continue;
-
-      const UnsignedInteger i1 = simplices(i, 0);
-      const UnsignedInteger i2 = simplices(i, 1);
-      const UnsignedInteger i3 = simplices(i, 2);
-      const UnsignedInteger i4 = simplices(i, 3);
-
-      const Point_3 v1{vertices(i1, 0), vertices(i1, 1), vertices(i1, 2)};
-      const Point_3 v2{vertices(i2, 0), vertices(i2, 1), vertices(i2, 2)};
-      const Point_3 v3{vertices(i3, 0), vertices(i3, 1), vertices(i3, 2)};
-      const Point_3 v4{vertices(i4, 0), vertices(i4, 1), vertices(i4, 2)};
-
+      // build from the surface mesh
       Polyhedron poly;
-      poly.make_tetrahedron(v1, v2, v3, v4);
+      CGAL::Polyhedron_incremental_builder_3<HDS> builder(poly.hds(), true);
+      builder.begin_surface(vertices.getSize(), simplices.getSize());
+      for (UnsignedInteger i = 0; i < vertices.getSize(); ++ i)
+      {
+        const Point_3 p{vertices(i, 0), vertices(i, 1), vertices(i, 2)};
+        builder.add_vertex(p);
+      }
+      for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+      {
+        builder.begin_facet();
+        for (UnsignedInteger j = 0; j < dimension; ++ j)
+          builder.add_vertex_to_facet(simplices(i, j));
+        builder.end_facet();
+      }
+      builder.end_surface();
 
-      const Nef_polyhedron tetra(poly);
-      nef += tetra;
+      // we have to check unconnected vertices otherwise older CGAL crashes when converting to Nef_polyhedron
+      if (builder.check_unconnected_vertices())
+      {
+        LOGINFO("ConvexDecompositionMesher detected unconnected vertices, removing");
+        if (!builder.remove_unconnected_vertices())
+          throw InvalidArgumentException(HERE) << "Polyhedron could not remove all unconnected vertices";
+      }
+
+      if (!poly.is_valid(Log::HasDebug()))
+        throw InvalidArgumentException(HERE) << "Polyhedron must be valid";
+
+      if (!poly.is_closed())
+        throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
+
+      nef = Nef_polyhedron(poly);
+
+      if (!nef.is_simple())
+        throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
+    }
+    else if (intrinsicDimension == 3)
+    {
+      // build from the volumetric mesh
+      for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+      {
+        if (!(simplicesVolume[i] > smallVolume))
+          continue;
+
+        const UnsignedInteger i1 = simplices(i, 0);
+        const UnsignedInteger i2 = simplices(i, 1);
+        const UnsignedInteger i3 = simplices(i, 2);
+        const UnsignedInteger i4 = simplices(i, 3);
+
+        const Point_3 v1{vertices(i1, 0), vertices(i1, 1), vertices(i1, 2)};
+        const Point_3 v2{vertices(i2, 0), vertices(i2, 1), vertices(i2, 2)};
+        const Point_3 v3{vertices(i3, 0), vertices(i3, 1), vertices(i3, 2)};
+        const Point_3 v4{vertices(i4, 0), vertices(i4, 1), vertices(i4, 2)};
+
+        Polyhedron poly;
+        poly.make_tetrahedron(v1, v2, v3, v4);
+
+        const Nef_polyhedron tetra(poly);
+        nef += tetra;
+      }
+    }
+    else
+      throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
+
+    // Extract convex components
+    CGAL::convex_decomposition_3(nef);
+
+    // the first volume is the outer volume, which is ignored in the decomposition
+    for (auto ci = ++nef.volumes_begin(); ci != nef.volumes_end(); ++ci)
+    {
+      if (ci->mark())
+      {
+        Polyhedron part;
+        nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), part);
+
+        if (part.empty())
+          continue;
+
+        CGAL::Polygon_mesh_processing::triangulate_faces(part);
+        
+        Sample verticesI(part.size_of_vertices(), dimension); 
+        std::unordered_map<typename Polyhedron::Vertex_const_handle, UnsignedInteger> vertexToIndexMap;
+        UnsignedInteger vertexIndex = 0;
+        for (auto vi = part.vertices_begin(); vi != part.vertices_end(); ++ vi)
+        {
+          // typename Polyhedron::Vertex_const_handle vch = vi;
+          const Point_3 & p = vi->point();
+          for (UnsignedInteger j = 0; j < dimension; ++ j)
+            verticesI(vertexIndex, j) = CGAL::to_double(p[j]);
+          vertexToIndexMap[vi] = vertexIndex;
+          ++ vertexIndex;
+        }
+
+        // arbitrarily select the apex as the first vertex
+        const UnsignedInteger apexIndex = vertexToIndexMap[part.vertices_begin()];
+
+        // build simplices
+        Collection<Indices> simplexColl;
+        for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
+        {
+          auto h = f->facet_begin();
+          
+          // filter out the facets incident to the apex vertex
+          Bool ok = true;
+          for (UnsignedInteger j = 0; j < dimension + 1; ++ j)
+          {
+            if (vertexToIndexMap[h->vertex()] == apexIndex)
+            {
+              ok = false;
+              break;
+            }
+            ++ h;
+          }
+
+          if (ok)
+          {
+            h = f->facet_begin();
+            Indices simplex(dimension + 1);
+            simplex[0] = apexIndex;
+            for (UnsignedInteger j = 0; j < dimension; ++ j)
+            {
+              simplex[j + 1] = vertexToIndexMap[h->vertex()];
+              ++ h;
+            }
+#if 0
+            // filter out small simplex
+            const Mesh simplexMesh(verticesI, IndicesCollection(Collection<Indices>(1, simplex)));
+            if (!(simplexMesh.getVolume() > SpecFunc::Precision))
+              continue;
+#endif
+            simplexColl.add(simplex);
+          }
+        }
+        result.add(Mesh(verticesI, IndicesCollection(simplexColl)));
+      }
+    } // for nef.volumes
+  } // 3d
+  else if (dimension == intrinsicDimension)
+  {
+    Indices simplex(dimension + 1);
+    Indices standardSimplex(dimension + 1);
+    standardSimplex.fill();
+    const IndicesCollection uniqueSimplex(1, dimension + 1, standardSimplex);
+    Sample simplexVertices(dimension + 1, dimension);
+    for (UnsignedInteger simplexIndex = 0; simplexIndex < simplices.getSize(); ++ simplexIndex)
+    {
+      // Skip small simplices
+      if (!(simplicesVolume[simplexIndex] > smallVolume))
+        continue;
+      std::copy(simplices.cbegin_at(simplexIndex), simplices.cend_at(simplexIndex), simplex.begin());
+
+      // Here we should keep the vertices untouched in order to avoid partial copies
+      // but unused vertices throw an exception in the validity check
+      for (UnsignedInteger j = 0; j <= dimension; ++j)
+      {
+        const UnsignedInteger localJ = simplex[j];
+        for (UnsignedInteger k = 0; k < dimension; ++k)
+          simplexVertices(j, k) = vertices(localJ, k);
+      }
+      result.add(Mesh(simplexVertices, uniqueSimplex));
     }
   }
   else
-    throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
-
-  CGAL::convex_decomposition_3(nef);
-
-  Collection<Mesh> result;
-
-  // Extract convex components
-
-  // the first volume is the outer volume, which is ignored in the decomposition
-  for (auto ci = ++nef.volumes_begin(); ci != nef.volumes_end(); ++ci)
-  {
-    if (ci->mark())
-    {
-      Polyhedron part;
-      nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), part);
-
-      if (part.empty())
-        continue;
-
-      CGAL::Polygon_mesh_processing::triangulate_faces(part);
-      
-      Sample verticesI(part.size_of_vertices(), dimension); 
-      std::unordered_map<typename Polyhedron::Vertex_const_handle, UnsignedInteger> vertexToIndexMap;
-      UnsignedInteger vertexIndex = 0;
-      for (auto vi = part.vertices_begin(); vi != part.vertices_end(); ++ vi)
-      {
-        // typename Polyhedron::Vertex_const_handle vch = vi;
-        const Point_3 & p = vi->point();
-        for (UnsignedInteger j = 0; j < dimension; ++ j)
-          verticesI(vertexIndex, j) = CGAL::to_double(p[j]);
-        vertexToIndexMap[vi] = vertexIndex;
-        ++ vertexIndex;
-      }
-
-      // arbitrarily select the apex as the first vertex
-      const UnsignedInteger apexIndex = vertexToIndexMap[part.vertices_begin()];
-
-      // build simplices
-      Collection<Indices> simplexColl;
-      for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
-      {
-        auto h = f->facet_begin();
-        
-        // filter out the facets incident to the apex vertex
-        Bool ok = true;
-        for (UnsignedInteger j = 0; j < dimension + 1; ++ j)
-        {
-          if (vertexToIndexMap[h->vertex()] == apexIndex)
-          {
-            ok = false;
-            break;
-          }
-          ++ h;
-        }
-
-        if (ok)
-        {
-          h = f->facet_begin();
-          Indices simplex(dimension + 1);
-          simplex[0] = apexIndex;
-          for (UnsignedInteger j = 0; j < dimension; ++ j)
-          {
-            simplex[j + 1] = vertexToIndexMap[h->vertex()];
-            ++ h;
-          }
-#if 0
-          // filter out small simplex
-          const Mesh simplexMesh(verticesI, IndicesCollection(Collection<Indices>(1, simplex)));
-          if (!(simplexMesh.getVolume() > SpecFunc::Precision))
-            continue;
-#endif
-          simplexColl.add(simplex);
-        }
-      }
-      result.add(Mesh(verticesI, IndicesCollection(simplexColl)));
-    }
-  }
+    throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected dimension=3 and intrinsicDimension = 2|3, or dimension=intrinsicDimension, here got dimension=" << dimension << " and intrinsicDimension=" << intrinsicDimension;
   return result;
 }
 
