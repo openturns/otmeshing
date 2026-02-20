@@ -58,19 +58,34 @@ for i, convex in enumerate(decomposition):
     volume_sum += convex.getVolume()
 ott.assert_almost_equal(volume_sum, 15.0)
 
-N = 40
-eps = 1e-4
-levelSet = ot.LevelSet(ot.SymbolicFunction(["x1", "x2", "x3", "x4"], ["(x1^2+x2^2+x3^2+x4^2+3)^2-16*(x1^2+x2^2)"]), ot.LessOrEqual(), 0.0)
-mesh = ot.LevelSetMesher([N] * 4).build(levelSet, ot.Interval([-3 - eps]*2+[-1-eps]*2, [3 + eps]*2+[1+eps]*2))
-#print(mesh)
+# Create a 4-D torus
+f = ot.SymbolicFunction(["x0", "x1", "x2", "x3"], ["(x0^2 + x1^2 + x2^2 + x3^2 + 3)^2 - 16 * (x0^2 + x1^2)"])
+levelSet = ot.LevelSet(f, ot.LessOrEqual(), 0.0)
+N = 11
+mesh = ot.LevelSetMesher([N] * 4).build(levelSet, ot.Interval([-3.0] * 2 + [-1.0] * 2, [3.0] * 2 + [1.0] * 2))
+print(mesh)
 print(mesh.getVolume())
 assert mesh.isValid()
-print(mesh.getVertices().getMin(), mesh.getVertices().getMax())
+
 # build decomposition
 decomposition = mesher.build(mesh)
 volume_sum = 0.0
 for i, convex in enumerate(decomposition):
-    #print(i, repr(convex), convex.getVolume())
     volume_sum += convex.getVolume()
 ott.assert_almost_equal(volume_sum, mesh.getVolume())
 
+# Create a 2-D torus, i.e two disks
+f = ot.SymbolicFunction(["x0", "x1"], ["(x0^2 + x1^2 + 3)^2 - 16 * (x0^2)"])
+levelSet = ot.LevelSet(f, ot.LessOrEqual(), 0.0)
+N = 21
+mesh = ot.LevelSetMesher([N] * 2).build(levelSet, ot.Interval([-3.0] + [-1.0], [3.0] + [1.0]))
+print(mesh)
+print(mesh.getVolume())
+assert mesh.isValid()
+
+# build decomposition
+decomposition = mesher.build(mesh)
+volume_sum = 0.0
+for i, convex in enumerate(decomposition):
+    volume_sum += convex.getVolume()
+ott.assert_almost_equal(volume_sum, mesh.getVolume())

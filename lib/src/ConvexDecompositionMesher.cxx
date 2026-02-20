@@ -71,7 +71,41 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   const UnsignedInteger intrinsicDimension = mesh.getIntrinsicDimension();
   const Sample vertices(mesh.getVertices());
   const IndicesCollection simplices(mesh.getSimplices());
+  const Point simplicesVolume(mesh.computeSimplicesVolume());
+  const Scalar smallVolume = simplicesVolume.norm1() * SpecFunc::Precision;
+  Collection<Mesh> result;
 
+  // For now, we have an efficient algorithm (in terms of number of convex parts)
+  // only in dimension 3 for intrinsic dimension 2 or 3
+  if ((dimension != 3) || (intrinsicDimension != 2) && (intrinsicDimension != 3))
+  {
+    if (intrinsicDimension != dimension)
+      throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected dimension=3 and intrinsicDimension = 2|3, or dimension=intrinsicDimension, here got dimension=" << dimension << " and intrinsicDimension=" << intrinsicDimension;
+
+    Indices simplex(dimension + 1);
+    Indices standardSimplex(dimension + 1);
+    standardSimplex.fill();
+    const IndicesCollection uniqueSimplex(1, dimension + 1, standardSimplex);
+    Sample simplexVertices(dimension + 1, dimension);
+    for (UnsignedInteger simplexIndex = 0; simplexIndex < simplices.getSize(); ++ simplexIndex)
+    {
+      // Skip small simplices
+      if (!(simplicesVolume[simplexIndex] > smallVolume))
+        continue;
+      std::copy(simplices.cbegin_at(simplexIndex), simplices.cend_at(simplexIndex), simplex.begin());
+      // Here we should keep the vertices untouched in order to avoid partial copies but unused vertices throw an exception in the validity check
+      for (UnsignedInteger j = 0; j <= dimension; ++j)
+      {
+        const UnsignedInteger localJ = simplex[j];
+        for (UnsignedInteger k = 0; k < dimension; ++k)
+          simplexVertices(j, k) = vertices(localJ, k);
+      }
+      result.add(Mesh(simplexVertices, uniqueSimplex));
+    }
+    return result;
+  }
+
+  // Here we have dimension == 3 and intrinsicDimension == 2|3
   Nef_polyhedron nef;
 
   Collection<Mesh> result;
@@ -117,14 +151,13 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   }
   else if ((intrinsicDimension == 3) && (dimension == 3))
   {
-    const Point simplicesVolume(mesh.computeSimplicesVolume());
 
     // build from the volumetric mesh
     for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
     {
       // LevelSetMesher can yield almost empty cells
       // possible workaround with key LevelSetMesher-SolveEquation=False
-      if (!(simplicesVolume[i] > SpecFunc::Precision))
+      if (!(simplicesVolume[i] > smallVolume))
         continue;
 
       const UnsignedInteger i1 = simplices(i, 0);
@@ -144,22 +177,9 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       nef += tetra;
     }
   }
-  else
-    // Return the list of simplices, based on the same vertices sample to avoid
-    // data copy
-    {
-      const UnsignedInteger dimension = mesh.getDimension();
-      Indices simplex(dimension + 1);
-      for (UnsignedInteger nSimplex = 0; nSimplex < mesh.getSimplicesNumber(); ++nSimplex)
-	{
-	  // Copy the current simplex
-	  std::copy(mesh.getSimplices().begin_at(nSimplex), mesh.getSimplices().end_at(nSimplex), simplex.begin());
-	  result.add(Mesh(mesh.getVertices(), IndicesCollection(1, dimension + 1, simplex)));
-	}
-      return result;
-    }
 
   CGAL::convex_decomposition_3(nef);
+
 
   // Extract convex components
 
@@ -175,8 +195,8 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
         continue;
 
       CGAL::Polygon_mesh_processing::triangulate_faces(part);
-      
-      Sample verticesI(part.size_of_vertices(), dimension); 
+
+      Sample verticesI(part.size_of_vertices(), dimension);
       std::unordered_map<typename Polyhedron::Vertex_const_handle, UnsignedInteger> vertexToIndexMap;
       UnsignedInteger vertexIndex = 0;
       for (auto vi = part.vertices_begin(); vi != part.vertices_end(); ++ vi)
@@ -197,7 +217,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
       {
         auto h = f->facet_begin();
-        
+
         // filter out the facets incident to the apex vertex
         Bool ok = true;
         for (UnsignedInteger j = 0; j < dimension + 1; ++ j)
@@ -220,12 +240,10 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
             simplex[j + 1] = vertexToIndexMap[h->vertex()];
             ++ h;
           }
-#if 0
           // filter out small simplex
           const Mesh simplexMesh(verticesI, IndicesCollection(Collection<Indices>(1, simplex)));
-          if (!(simplexMesh.getVolume() > SpecFunc::Precision))
+          if (!(simplexMesh.getVolume() > smallVolume))
             continue;
-#endif
           simplexColl.add(simplex);
         }
       }
