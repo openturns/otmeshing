@@ -18,107 +18,23 @@
  *  along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include "openturns/PersistentObjectFactory.hxx"
-#include "openturns/SpecFunc.hxx"
-#include "openturns/KDTree.hxx"
+#include <openturns/PersistentObjectFactory.hxx>
+#include <openturns/SpecFunc.hxx>
 
 #include "otmeshing/IntersectionMesher.hxx"
 #include "otmeshing/CloudMesher.hxx"
 #include "otmeshing/ConvexDecompositionMesher.hxx"
+#include "otmeshing/UnionMesher.hxx"
 
 #ifdef OPENTURNS_HAVE_CDDLIB
 #include <setoper.h>
 #include <cdd.h>
 #endif
 
-#include <nanoflann.hpp>
-#if NANOFLANN_VERSION < 0x150
-namespace nanoflann
-{
-using SearchParameters = SearchParams;
-}
-#endif
-
 using namespace OT;
 
 namespace OTMESHING
 {
-
-class KDTreeSampleAdaptor
-{
-public:
-  explicit KDTreeSampleAdaptor(const Sample & points)
-    : data_(points.getImplementation()->data())
-    , size_(points.getSize())
-    , dimension_(points.getDimension())
-  {
-  }
-
-  inline size_t kdtree_get_point_count() const
-  {
-    return size_;
-  }
-
-  inline Scalar kdtree_get_pt(const size_t idx, const size_t dim) const
-  {
-    return data_[dim + idx * dimension_];
-  }
-
-  template <class BBOX>
-  bool kdtree_get_bbox(BBOX & /*bb*/) const
-  {
-    return false;
-  }
-
-private:
-  const Scalar *data_ = nullptr;
-  UnsignedInteger size_ = 0;
-  UnsignedInteger dimension_ = 0;
-};
-
-using nano_kd_tree_t = nanoflann::KDTreeSingleIndexAdaptor <
-                       nanoflann::L2_Simple_Adaptor<Scalar, KDTreeSampleAdaptor >,
-                       KDTreeSampleAdaptor, -1 >;
-
-class KDTree2
-{
-public:
-  explicit KDTree2(const Sample & points)
-  {
-    const UnsignedInteger dimension = points.getDimension();
-    sampleAdaptor_ = new KDTreeSampleAdaptor(points);
-    nanoflann::KDTreeSingleIndexAdaptorParams indexParameters;
-    indexParameters.leaf_max_size = ResourceMap::GetAsUnsignedInteger("KDTree-leaf_max_size");
-#if NANOFLANN_VERSION >= 0x150
-    indexParameters.n_thread_build = ResourceMap::GetAsUnsignedInteger("KDTree-n_thread_build");
-#endif
-    indexAdaptor_ = new nano_kd_tree_t(dimension, *sampleAdaptor_, indexParameters);
-  }
-
-  Indices queryRadius(const Point & x, const Scalar radius, Point & distanceOut, const Bool sorted = false) const
-  {
-#if NANOFLANN_VERSION >= 0x150
-    std::vector<nanoflann::ResultItem<unsigned int, Scalar> > indicesDists;
-#else
-    std::vector<std::pair<UnsignedInteger, Scalar> > indicesDists;
-#endif
-    nanoflann::SearchParameters searchParameters;
-    searchParameters.sorted = sorted;
-    const UnsignedInteger nFound = indexAdaptor_->radiusSearch(x.data(), radius * radius, indicesDists, searchParameters);
-    Indices result(nFound);
-    distanceOut.resize(nFound);
-    for(UnsignedInteger k = 0; k < nFound; ++ k)
-    {
-      result[k] = indicesDists[k].first;
-      distanceOut[k] = std::sqrt(indicesDists[k].second);
-    }
-    return result;
-  }
-
-private:
-  Pointer<KDTreeSampleAdaptor> sampleAdaptor_;
-  Pointer<nano_kd_tree_t> indexAdaptor_;
-};
 
 CLASSNAMEINIT(IntersectionMesher)
 static const Factory<IntersectionMesher> Factory_IntersectionMesher;
@@ -187,7 +103,7 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
     }
     Mesh result(vertices, IndicesCollection(simplexColl));
     if (recompress_)
-      result = CompressMesh(result);
+      result = UnionMesher::CompressMesh(result);
     return result;
   } // dim=3
 
@@ -206,46 +122,6 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
     todo = done;
   }
   return todo[0];
-}
-
-/* Deduplicate mesh vertices */
-Mesh IntersectionMesher::CompressMesh(const Mesh & mesh)
-{
-  const UnsignedInteger dimension = mesh.getDimension();
-  const Sample vertices(mesh.getVertices());
-  const UnsignedInteger fullSize = vertices.getSize();
-  if (!fullSize)
-    return mesh;
-  IndicesCollection simplices(mesh.getSimplices());
-  Indices compressedVertexMap(fullSize, fullSize);
-  const KDTree2 tree(vertices);
-  const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
-  Sample verticesCompressed(0, dimension);
-  for (UnsignedInteger i = 0; i < fullSize; ++ i)
-  {
-    // check if already marked
-    if (compressedVertexMap[i] < fullSize)
-      continue;
-
-    // retrieve the indices of unique points, beware the last few decimals can actually differ
-    Point distance;
-    const Indices nearest(tree.queryRadius(vertices[i], tolerance, distance));
-
-    // mark the whole set of unique points (contains i index)
-    const UnsignedInteger currentSize = verticesCompressed.getSize();
-    for (UnsignedInteger k = 0; k < nearest.getSize(); ++ k)
-      compressedVertexMap[nearest[k]] = currentSize;
-
-    // store the point
-    verticesCompressed.add(vertices[i]);
-  }
-  LOGDEBUG(OSS() << "recompression fullSize=" << fullSize << " compressedSize=" << verticesCompressed.getSize());
-
-  // renumber vertex indices
-  for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
-    for (UnsignedInteger j = 0; j <= dimension; ++ j)
-      simplices(i, j) = compressedVertexMap[simplices(i, j)];
-  return Mesh(verticesCompressed, simplices);
 }
 
 #ifdef OPENTURNS_HAVE_CDDLIB
@@ -309,9 +185,8 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
   const UnsignedInteger ns1 = mesh1.getSimplicesNumber();
   const UnsignedInteger ns2 = mesh2.getSimplicesNumber();
 
-  Sample vertices(0, dimension);
   CloudMesher cloudMesher;
-  Collection<Indices> simplexColl;
+  Collection<Mesh> intersectionColl;
 
   // initialize cddlib
   dd_ErrorType err = dd_NoError;
@@ -399,7 +274,6 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
       // retrieve vertices
       dd_MatrixPtr gen = dd_CopyGenerators(intersectionV);
       dd_FreePolyhedra(intersectionV);
-      const UnsignedInteger verticesSize = vertices.getSize();
       const UnsignedInteger intersectionVerticesNumber = gen->rowsize; // empty intersection if zero
       if (intersectionVerticesNumber >= (dimension + 1))
       {
@@ -422,26 +296,16 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
         {
           // only one simplex
           Indices simplex(dimension + 1);
-          simplex.fill(verticesSize); // orientation may be incorrect
-          simplexColl.add(simplex);
-          vertices.add(intersectionVertices);
+          simplex.fill(); // orientation may be incorrect
+          const IndicesCollection intersectionSimplices(Collection<Indices>(1, simplex));
+          intersectionColl.add(Mesh(intersectionVertices, intersectionSimplices));
         }
         else
         {
           // V>d+1, decompose into several simplices
           const Mesh intersectionMesh(cloudMesher.build(intersectionVertices));
-          const IndicesCollection intersectionSimplices(intersectionMesh.getSimplices());
-          const UnsignedInteger intersectionSimplicesNumber = intersectionMesh.getSimplicesNumber();
-          for (UnsignedInteger i = 0; i < intersectionSimplicesNumber; ++ i)
-          {
-            Indices simplex(dimension + 1);
-            for (UnsignedInteger j = 0; j <= dimension; ++ j)
-              simplex[j] = verticesSize + intersectionSimplices(i, j);
-            simplexColl.add(simplex);
-          }
-          // triangulation vertices are different than the ones in intersectionVertices
-          vertices.add(intersectionMesh.getVertices());
-        } // else V>d+1, decompose into several simplices
+          intersectionColl.add(intersectionMesh);
+        }
       } // if (intersectionVerticesNumber >= (dimension + 1))
     } // mesh2 simplices loop
     dd_FreeMatrix(h1);
@@ -454,9 +318,9 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
   dd_FreeMatrix(m2);
   dd_free_global_constants();
 
-  Mesh result(vertices, IndicesCollection(simplexColl));
+  Mesh result(UnionMesher().build(intersectionColl));
   if (recompress_)
-    result = CompressMesh(result);
+    result = UnionMesher::CompressMesh(result);
   return result;
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
@@ -478,9 +342,8 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
       throw InvalidArgumentException(HERE) << "IntersectionMesher expected meshes of same dimension";
 
 #ifdef OPENTURNS_HAVE_CDDLIB
-  Sample vertices(0, dimension);
   CloudMesher cloudMesher;
-  Collection<Indices> simplexColl;
+  Collection<Mesh> intersectionColl;
   Point lower1(dimension, -SpecFunc::Infinity);
   Point upper1(dimension, SpecFunc::Infinity);
   UnsignedInteger prunedNumber = 0;
@@ -563,7 +426,6 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
   // retrieve vertices
   dd_MatrixPtr gen = dd_CopyGenerators(intersectionV);
   dd_FreePolyhedra(intersectionV);
-  const UnsignedInteger verticesSize = vertices.getSize();
   const UnsignedInteger intersectionVerticesNumber = gen->rowsize; // empty intersection if zero
   if (intersectionVerticesNumber >= (dimension + 1))
   {
@@ -586,32 +448,23 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
     {
       // only one simplex
       Indices simplex(dimension + 1);
-      simplex.fill(verticesSize); // orientation may be incorrect
-      simplexColl.add(simplex);
-      vertices.add(intersectionVertices);
+      simplex.fill(); // orientation may be incorrect
+      const IndicesCollection intersectionSimplices(Collection<Indices>(1, simplex));
+      intersectionColl.add(Mesh(intersectionVertices, intersectionSimplices));
     }
     else
     {
       // V>d+1, decompose into several simplices
       const Mesh intersectionMesh(cloudMesher.build(intersectionVertices));
-      const IndicesCollection intersectionSimplices(intersectionMesh.getSimplices());
-      const UnsignedInteger intersectionSimplicesNumber = intersectionMesh.getSimplicesNumber();
-      for (UnsignedInteger i = 0; i < intersectionSimplicesNumber; ++ i)
-      {
-        Indices simplex(dimension + 1);
-        for (UnsignedInteger j = 0; j <= dimension; ++ j)
-          simplex[j] = verticesSize + intersectionSimplices(i, j);
-        simplexColl.add(simplex);
-      }
-      // triangulation vertices are different than the ones in intersectionVertices
-      vertices.add(intersectionMesh.getVertices());
-    } // else V>d+1, decompose into several simplices
+      intersectionColl.add(intersectionMesh);
+    }
   } // if (intersectionVerticesNumber >= (dimension + 1))
 
   dd_FreeMatrix(gen);
   dd_free_global_constants();
-  
-  return Mesh(vertices, IndicesCollection(simplexColl));
+
+  const Mesh result(UnionMesher().build(intersectionColl));
+  return result;
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
 #endif
