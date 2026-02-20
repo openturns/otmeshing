@@ -46,6 +46,7 @@ if (cddlib_FOUND)
 endif ()
 ot_pyinstallcheck_test (MeshDomain2_std IGNOREOUT)
 ot_pyinstallcheck_test (PolygonMesher_std IGNOREOUT)
+ot_pyinstallcheck_test (UnionMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (docstring IGNOREOUT)
 
 if (MATPLOTLIB_FOUND)

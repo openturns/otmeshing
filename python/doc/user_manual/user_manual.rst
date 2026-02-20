@@ -14,3 +14,4 @@ API Reference
     IntersectionMesher
     MeshDomain2
     PolygonMesher
+    UnionMesher

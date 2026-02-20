@@ -25,3 +25,4 @@
 %include IntersectionMesher.i
 %include MeshDomain2.i
 %include PolygonMesher.i
+%include UnionMesher.i

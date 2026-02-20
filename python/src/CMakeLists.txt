@@ -53,6 +53,7 @@ ot_add_python_module( ${PACKAGE_NAME} ${PACKAGE_NAME}_module.i
                       Cylinder.i Cylinder_doc.i
                       IntersectionMesher.i IntersectionMesher_doc.i
                       PolygonMesher.i PolygonMesher_doc.i
+                      UnionMesher.i UnionMesher_doc.i
                     )
 
 
