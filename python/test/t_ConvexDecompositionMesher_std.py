@@ -6,6 +6,25 @@ import otmeshing
 
 ot.TESTPREAMBLE()
 
+mesher = otmeshing.ConvexDecompositionMesher()
+print("mesher=", mesher)
+
+# 2d snake + box
+polyline = [[0, 0], [0, 5], [6, 5], [6, 0], [2, 0], [2, 3], [4, 3],
+            [4, 2], [3, 2], [3, 1], [5, 1], [5, 4], [1, 4], [1, 0]]
+mesh1 = otmeshing.PolygonMesher().build(polyline)
+mesh2 = ot.IntervalMesher([1] * 2).build(ot.Interval([-2] * 2, [-1] * 2))
+mesh = otmeshing.UnionMesher().build([mesh1, mesh2])
+print(repr(mesh))
+decomposition = mesher.build(mesh)
+assert len(decomposition) == 7
+volume_sum = 0.0
+for i, convex in enumerate(decomposition):
+    print(i, repr(convex), convex.getVolume())
+    volume_sum += convex.getVolume()
+    assert otmeshing.ConvexDecompositionMesher.IsConvex(convex)
+ott.assert_almost_equal(volume_sum, mesh.getVolume())
+
 # 3d surface mesh
 vertices = [
     [0, 0, 0], [2, 0, 0], [2, 2, 0], [0, 2, 0],  # 0–3 bottom
@@ -29,8 +48,6 @@ assert mesh.isValid()
 assert not otmeshing.ConvexDecompositionMesher.IsConvex(mesh)
 
 # build decomposition
-mesher = otmeshing.ConvexDecompositionMesher()
-print("mesher=", mesher)
 decomposition = mesher.build(mesh)
 volume_sum = 0.0
 for i, convex in enumerate(decomposition):
