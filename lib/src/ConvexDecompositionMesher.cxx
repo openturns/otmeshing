@@ -25,23 +25,23 @@
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
 
+// 3d
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Polyhedron_3.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Nef_polyhedron_3.h>
-#include <CGAL/boost/graph/convert_nef_polyhedron_to_polygon_mesh.h>
 #include <CGAL/convex_decomposition_3.h>
 #include <CGAL/Polyhedron_incremental_builder_3.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 
+// 2d
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Polygon_mesh_processing/connected_components.h>
+#include <CGAL/convex_hull_2.h>
+
 using namespace OT;
 
-using KernelExact = CGAL::Exact_predicates_exact_constructions_kernel;
-using Polyhedron = CGAL::Polyhedron_3<KernelExact>;
-using HDS = Polyhedron::HalfedgeDS;
-using Surface_mesh = CGAL::Surface_mesh<KernelExact::Point_3>;
-using Nef_polyhedron = CGAL::Nef_polyhedron_3<KernelExact>;
-using Point_3 = KernelExact::Point_3;
+
 
 namespace OTMESHING
 {
@@ -78,8 +78,133 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   // possible workaround with key LevelSetMesher-SolveEquation=False
   const Scalar smallVolume = simplicesVolume.norm1() * SpecFunc::Precision;
 
-  if (dimension == 3)
+  if (dimension == 2)
   {
+    using KernelInexact = CGAL::Exact_predicates_inexact_constructions_kernel;
+    using Point_2 = KernelInexact::Point_2;
+    using Polygon_2 = CGAL::Polygon_2<KernelInexact>;
+    using Point3 = KernelInexact::Point_3;
+    using Mesh3 = CGAL::Surface_mesh<Point3>;
+
+    Mesh3 mesh3;
+    std::map<Point3, Mesh3::Vertex_index> vMap;
+    for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+    {
+      const UnsignedInteger i0 = simplices(i, 0);
+      const UnsignedInteger i1 = simplices(i, 1);
+      const UnsignedInteger i2 = simplices(i, 2);
+      const Point3 v0{vertices(i0, 0), vertices(i0, 1), 0.0};
+      const Point3 v1{vertices(i1, 0), vertices(i1, 1), 0.0};
+      const Point3 v2{vertices(i2, 0), vertices(i2, 1), 0.0};
+
+      if (vMap.find(v0) == vMap.end())
+        vMap[v0] = mesh3.add_vertex(v0);
+      if (vMap.find(v1) == vMap.end())
+        vMap[v1] = mesh3.add_vertex(v1);
+      if (vMap.find(v2) == vMap.end())
+        vMap[v2] = mesh3.add_vertex(v2);
+
+      if (mesh3.add_face(vMap[v0], vMap[v1], vMap[v2]) == Mesh3::null_face())
+        throw InternalException(HERE) << "Degenerate or duplicate face";
+    }
+
+    // decompose into connected components
+    std::vector<std::size_t> components(mesh3.number_of_faces());
+    const UnsignedInteger componentsNumber = CGAL::Polygon_mesh_processing::connected_components(mesh3, CGAL::make_property_map(components));
+    LOGDEBUG(OSS() << "Number of connected components" << componentsNumber);
+
+    std::vector<Point_2> vertices2;
+    for (UnsignedInteger i = 0; i < vertices.getSize(); ++ i)
+    {
+      const Point_2 v0{vertices(i, 0), vertices(i, 1)};
+      vertices2.push_back(v0);
+    }
+
+    // for each disconnected components
+    CloudMesher mesher;
+    for (UnsignedInteger cid = 0; cid < componentsNumber; ++ cid)
+    {
+      // collect triangle indices for this component
+      Indices componentTriangles;
+      for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+        if (components[Mesh3::Face_index(i)] == cid)
+          componentTriangles.add(i);
+
+      // greedy algorithm to form convex components starting from each triangle
+      Indices used(simplices.getSize());
+      for (const UnsignedInteger idx : componentTriangles)
+      {
+        if (used[idx]) continue;
+
+        // initial triangle to start the convex polygon from
+        Polygon_2 poly;
+        poly.push_back(vertices2[simplices(idx, 0)]);
+        poly.push_back(vertices2[simplices(idx, 1)]);
+        poly.push_back(vertices2[simplices(idx, 2)]);
+        used[idx] = 1;
+
+        // continue while we succedeed in aggregating a triangle
+        Bool mergedAny = false;
+        do
+        {
+          mergedAny = false;
+          for (const UnsignedInteger jdx : componentTriangles)
+          {
+            if (used[jdx]) continue;
+
+            // check if triangles share and edge
+            Indices sharedVertexJIndex;
+            for (UnsignedInteger i1 = 0; i1 < 3; ++ i1)
+              for (UnsignedInteger i2 = 0; i2 < 3; ++ i2)
+                if (simplices(idx, i1) == simplices(jdx, i2))
+                  sharedVertexJIndex.add(i2);
+            const Bool shareEdge = sharedVertexJIndex.getSize() == 2;
+            if (!shareEdge) continue;
+
+            // merge triangle jdx by inserting the vertex that is not shared in the shared edge
+            const UnsignedInteger newVertexIndex = simplices(jdx, sharedVertexJIndex.complement(3)[0]);
+            const Indices commonVertexIndex = {simplices(jdx, sharedVertexJIndex[0]), simplices(jdx, sharedVertexJIndex[1])};
+            const Point_2 p0{vertices2[commonVertexIndex[0]]};
+            const Point_2 p1{vertices2[commonVertexIndex[1]]};
+            const Point_2 newPoint{vertices2[newVertexIndex]};
+            Polygon_2 merged{poly};
+            for (auto vi = merged.vertices_begin(); vi != merged.vertices_end(); ++ vi)
+            {
+              // wrap around
+              auto next = std::next(vi);
+              if (next == merged.vertices_end())
+                next = merged.vertices_begin();
+
+              if ((*vi == p0 && *next == p1) || (*vi == p1 && *next == p0))
+              {
+                merged.insert(next, newPoint);
+                break;
+              }
+            }
+            if (merged.is_convex())
+            {
+              poly = merged;
+              used[jdx] = 1;
+              mergedAny = true;
+            }
+          }
+        } while (mergedAny);
+
+        Sample verticesI(0, dimension);
+        for (const auto & p : poly)
+          verticesI.add(Point({p[0], p[1]}));
+        result.add(mesher.build(verticesI));
+      }
+    }
+  }
+  else if (dimension == 3)
+  {
+    using KernelExact = CGAL::Exact_predicates_exact_constructions_kernel;
+    using Polyhedron = CGAL::Polyhedron_3<KernelExact>;
+    using HDS = Polyhedron::HalfedgeDS;
+    using Nef_polyhedron = CGAL::Nef_polyhedron_3<KernelExact>;
+    using Point_3 = KernelExact::Point_3;
+
     Nef_polyhedron nef;
     if (intrinsicDimension == 2)
     {
@@ -257,7 +382,7 @@ Bool ConvexDecompositionMesher::IsConvex(const Mesh & mesh)
   CloudMesher mesher;
   const Scalar vm = mesh.getVolume();
   const Scalar vc = mesher.build(mesh.getVertices()).getVolume();
-  return (vc > 0.0) && (std::abs((vm - vc) / vc) < std::sqrt(SpecFunc::Precision));
+  return (vc > 0.0) && (std::abs((vm - vc) / vc) < SpecFunc::Precision);
 }
 
 /* String converter */

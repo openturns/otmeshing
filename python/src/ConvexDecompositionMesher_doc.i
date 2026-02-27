@@ -9,7 +9,7 @@
 Parameters
 ----------
 mesh : :class:`~openturns.Mesh`
-    A polyhedra of dimension 3 defined from a surface mesh (of intrinsic dimension 2).
+    A mesh.
 
 Returns
 -------
