@@ -48,6 +48,7 @@ ot_pyinstallcheck_test (MeshDomain2_std IGNOREOUT)
 ot_pyinstallcheck_test (PolygonMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (UnionMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (docstring IGNOREOUT)
+ot_pyinstallcheck_test (saveload IGNOREOUT)
 
 if (MATPLOTLIB_FOUND)
   file (GLOB_RECURSE PYFILES "${PROJECT_SOURCE_DIR}/python/doc/examples/*.py")

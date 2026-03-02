@@ -25,6 +25,16 @@ base1 = ot.LevelSetMesher([N] * 2).build(
 extension1 = ot.Interval([-H1 / 2] * (dim - 2), [H1 / 2] * (dim - 2))
 injection1 = list(range(2, dim))
 cyl1 = otm.Cylinder(base1, extension1, injection1, M)
+print(cyl1)
+print(cyl1.getBoundingBox())
+print(cyl1.getVolume())
+print(cyl1.getDimension())
+print(cyl1.getBase())
+print(cyl1.getExtension())
+print(cyl1.getInjection())
+print(cyl1.getDiscretization())
+assert cyl1.isConvex()
+assert cyl1.getDimension() == dim
 
 print("Build cylinder 2")
 yc2 = 0.8
@@ -41,6 +51,7 @@ base2 = ot.LevelSetMesher([N] * 2).build(
 extension2 = ot.Interval([-H2 / 2] * (dim - 2), [H2 / 2] * (dim - 2))
 injection2 = [0] + list(range(3, dim))
 cyl2 = otm.Cylinder(base2, extension2, injection2, M)
+assert cyl2.isConvex()
 
 print("Mesh cylinder 1")
 method = otm.CloudMesher.BASIC
@@ -64,7 +75,7 @@ if dim <= 3:
 quit()
 t0 = time.time()
 algo = otm.IntersectionMesher()
-inter12 = algo.build(mesh1, mesh2)
+inter12 = algo.build([mesh1, mesh2])
 t1 = time.time()
 print("Convex, t=", t1 - t0, "s", "volume=", inter12.getVolume())
 if dim <= 3:

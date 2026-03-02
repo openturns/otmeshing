@@ -376,7 +376,7 @@ Bool ConvexDecompositionMesher::IsConvex(const Mesh & mesh)
   CloudMesher mesher;
   const Scalar vm = mesh.getVolume();
   const Scalar vc = mesher.build(mesh.getVertices()).getVolume();
-  return (vc > 0.0) && (std::abs((vm - vc) / vc) < SpecFunc::Precision);
+  return (vc > 0.0) && (std::abs((vm - vc) / vc) < std::sqrt(SpecFunc::Precision));
 }
 
 /* String converter */

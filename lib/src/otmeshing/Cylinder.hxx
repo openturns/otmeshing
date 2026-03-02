@@ -54,6 +54,18 @@ public:
   /** String converter */
   OT::String __str__(const OT::String & offset = "") const override;
 
+  /** Base accessor */
+  OT::Mesh getBase() const;
+  
+  /** Extension accessor */
+  OT::Interval getExtension() const;
+  
+  /** Injectio accessor */
+  OT::Indices getInjection() const;
+  
+  /** Discretization accessor */
+  OT::UnsignedInteger getDiscretization() const;
+
   /** Vertices accessor */
   OT::Sample getVertices() const;
 
@@ -62,6 +74,12 @@ public:
 
   /** Volume accessor */
   OT::Scalar getVolume() const;
+
+  /** Convex flag */
+  OT::Bool isConvex() const;
+
+  /** Dimension accessor */
+  OT::UnsignedInteger getDimension() const;
 
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;

@@ -59,3 +59,64 @@ Returns
 -------
 volume : float
     Cylinder volume."
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::isConvex
+"Convex property accessor.
+
+Returns
+-------
+isConvex : bool
+    Convex property."
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::getDimension
+"Dimension accessor.
+
+Returns
+-------
+dimension : int
+    Dimension"
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::getBase
+"Base accessor.
+
+Returns
+-------
+base : :py:class:`openturns.Mesh`
+    Cylinder base"
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::getExtension
+"Extension accessor.
+
+Returns
+-------
+extension : :py:class:`openturns.Interval`
+    Extension range"
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::getInjection
+"Injection accessor.
+
+Returns
+-------
+injection : :py:class:`openturns.Indices`
+    Dimension indices of the extension"
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::getDiscretization
+"Discretization accessor.
+
+Returns
+-------
+discretization : int
+    Discretization number along dimensions of the extension"
+

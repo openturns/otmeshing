@@ -22,6 +22,7 @@
 #include <openturns/IntervalMesher.hxx>
 
 #include "otmeshing/Cylinder.hxx"
+#include "otmeshing/ConvexDecompositionMesher.hxx"
 
 using namespace OT;
 
@@ -61,6 +62,12 @@ void Cylinder::initialize()
   complement_ = injection_.complement(dimension_);
   if (injection_.getSize() != extension_.getDimension())
     throw InvalidArgumentException(HERE) << "The injection indices size must be equal to the extension dimension.";
+}
+
+/* Dimension accessor */
+UnsignedInteger Cylinder::getDimension() const
+{
+  return dimension_;
 }
 
 /* Virtual constructor */
@@ -121,6 +128,36 @@ Interval Cylinder::getBoundingBox() const
 Scalar Cylinder::getVolume() const
 {
   return base_.getVolume() * extension_.getVolume();
+}
+
+/* Convex flag */
+Bool Cylinder::isConvex() const
+{
+  return ConvexDecompositionMesher::IsConvex(base_);
+}
+
+/* Base accessor */
+Mesh Cylinder::getBase() const
+{
+  return base_;
+}
+
+/* Extension accessor */
+Interval Cylinder::getExtension() const
+{
+  return extension_;
+}
+
+/* Injectio accessor */
+Indices Cylinder::getInjection() const
+{
+  return injection_;
+}
+
+/* Discretization accessor */
+UnsignedInteger Cylinder::getDiscretization() const
+{
+  return discretization_;
 }
 
 /* Method save() stores the object through the StorageManager */
