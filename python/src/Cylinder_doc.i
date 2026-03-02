@@ -59,3 +59,13 @@ Returns
 -------
 volume : float
     Cylinder volume."
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::Cylinder::isConvex
+"Convex property accessor.
+
+Returns
+-------
+isConvex : bool
+    Convex property."

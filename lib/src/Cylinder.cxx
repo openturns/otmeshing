@@ -22,6 +22,7 @@
 #include <openturns/IntervalMesher.hxx>
 
 #include "otmeshing/Cylinder.hxx"
+#include "otmeshing/ConvexDecompositionMesher.hxx"
 
 using namespace OT;
 
@@ -121,6 +122,12 @@ Interval Cylinder::getBoundingBox() const
 Scalar Cylinder::getVolume() const
 {
   return base_.getVolume() * extension_.getVolume();
+}
+
+/* Convex flag */
+Bool Cylinder::isConvex() const
+{
+  return ConvexDecompositionMesher::IsConvex(base_);
 }
 
 /* Method save() stores the object through the StorageManager */

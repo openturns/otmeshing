@@ -63,6 +63,9 @@ public:
   /** Volume accessor */
   OT::Scalar getVolume() const;
 
+  /** Convex flag */
+  OT::Bool isConvex() const;
+
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
 
