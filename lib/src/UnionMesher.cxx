@@ -155,11 +155,15 @@ Mesh UnionMesher::CompressMesh(const Mesh & mesh)
   Indices compressedVertexMap(fullSize, fullSize);
   const KDTree2 tree(vertices);
   const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
+  Indices usedVertex(fullSize, 0);
+  for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+    for (UnsignedInteger j = 0; j <= dimension; ++ j)
+      usedVertex[simplices(i, j)] = 1;
   Sample verticesCompressed(0, dimension);
   for (UnsignedInteger i = 0; i < fullSize; ++ i)
   {
-    // check if already marked
-    if (compressedVertexMap[i] < fullSize)
+    // check if unused or already marked
+    if (!usedVertex[i] || (compressedVertexMap[i] < fullSize))
       continue;
 
     // retrieve the indices of unique points, beware the last few decimals can actually differ
