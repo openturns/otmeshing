@@ -74,6 +74,13 @@ for i, convex in enumerate(decomposition):
     volume_sum += convex.getVolume()
 ott.assert_almost_equal(volume_sum, 15.0)
 
+# 3d disconnected cubes
+mesh1 = ot.IntervalMesher([1] * 3).build(ot.Interval([-2.0] * 3, [-1.0] * 3))
+mesh2 = ot.IntervalMesher([1] * 3).build(ot.Interval([1.0] * 3, [2.0] * 3))
+mesh = otmeshing.UnionMesher().build([mesh1, mesh2])
+decomposition = mesher.build(mesh)
+assert len(decomposition) == 2
+
 # Create a 4-D torus
 f = ot.SymbolicFunction(["x0", "x1", "x2", "x3"], ["(x0^2 + x1^2 + x2^2 + x3^2 + 3)^2 - 16 * (x0^2 + x1^2)"])
 levelSet = ot.LevelSet(f, ot.LessOrEqual(), 0.0)

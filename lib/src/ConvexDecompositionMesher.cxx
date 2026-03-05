@@ -72,11 +72,6 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   const Sample vertices(mesh.getVertices());
   const IndicesCollection simplices(mesh.getSimplices());
   Collection<Mesh> result;
-  const Point simplicesVolume(mesh.computeSimplicesVolume());
-
-  // LevelSetMesher can yield almost empty cells
-  // possible workaround with key LevelSetMesher-SolveEquation=False
-  const Scalar smallVolume = simplicesVolume.norm1() * SpecFunc::Precision;
 
   if (dimension == 2)
   {
@@ -241,30 +236,26 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
         throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
 
       nef = Nef_polyhedron(poly);
-
-      if (!nef.is_simple())
-        throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
     }
     else if (intrinsicDimension == 3)
     {
       // build from the volumetric mesh
       for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
       {
-        if (!(simplicesVolume[i] > smallVolume))
-          continue;
+        // cannot exclude small valume tetras as the nef can loose its 2-manifold property
 
-        const UnsignedInteger i1 = simplices(i, 0);
-        const UnsignedInteger i2 = simplices(i, 1);
-        const UnsignedInteger i3 = simplices(i, 2);
-        const UnsignedInteger i4 = simplices(i, 3);
+        const UnsignedInteger i0 = simplices(i, 0);
+        const UnsignedInteger i1 = simplices(i, 1);
+        const UnsignedInteger i2 = simplices(i, 2);
+        const UnsignedInteger i3 = simplices(i, 3);
 
+        const Point_3 v0{vertices(i0, 0), vertices(i0, 1), vertices(i0, 2)};
         const Point_3 v1{vertices(i1, 0), vertices(i1, 1), vertices(i1, 2)};
         const Point_3 v2{vertices(i2, 0), vertices(i2, 1), vertices(i2, 2)};
         const Point_3 v3{vertices(i3, 0), vertices(i3, 1), vertices(i3, 2)};
-        const Point_3 v4{vertices(i4, 0), vertices(i4, 1), vertices(i4, 2)};
 
         Polyhedron poly;
-        poly.make_tetrahedron(v1, v2, v3, v4);
+        poly.make_tetrahedron(v0, v1, v2, v3);
 
         const Nef_polyhedron tetra(poly);
         nef += tetra;
@@ -272,6 +263,9 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
     }
     else
       throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
+
+    if (!nef.is_simple())
+      throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
 
     // Extract convex components
     CGAL::convex_decomposition_3(nef);
@@ -348,6 +342,12 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   } // 3d
   else if (dimension == intrinsicDimension)
   {
+    const Point simplicesVolume(mesh.computeSimplicesVolume());
+
+    // LevelSetMesher can yield almost empty cells
+    // possible workaround with key LevelSetMesher-SolveEquation=False
+    const Scalar smallVolume = simplicesVolume.norm1() * SpecFunc::Precision;
+
     Indices simplex(dimension + 1);
     Indices standardSimplex(dimension + 1);
     standardSimplex.fill();
@@ -382,7 +382,7 @@ Bool ConvexDecompositionMesher::IsConvex(const Mesh & mesh)
   CloudMesher mesher;
   const Scalar vm = mesh.getVolume();
   const Scalar vc = mesher.build(mesh.getVertices()).getVolume();
-  return (vc > 0.0) && (std::abs((vm - vc) / vc) < SpecFunc::Precision);
+  return (vc > 0.0) && (std::abs((vm - vc) / vc) < std::sqrt(SpecFunc::Precision));
 }
 
 /* String converter */
