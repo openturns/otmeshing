@@ -38,6 +38,7 @@ class OTMESHING_API IntersectionMesher
 public:
   typedef OT::Collection<OT::Mesh> MeshCollection;
   typedef OT::Collection<Cylinder> CylinderCollection;
+  typedef OT::Collection<OT::Sample> SampleCollection;
 
   /** Default constructor */
   IntersectionMesher();
@@ -56,6 +57,7 @@ public:
 
   /** intersection of convexes */
   virtual OT::Mesh buildConvex(const MeshCollection & coll) const;
+  virtual OT::Sample buildConvexSample(const SampleCollection & coll) const;
 
   /** intersection of cylinders */
   virtual OT::Mesh buildCylinder(const CylinderCollection & coll) const;
