@@ -8,8 +8,7 @@ Cylinder meshing
 # how we to generate their meshes and compute their intersection mesh.
 # The Cylinder objects are distinct from their mesh
 # and CloudMesher objects will allow to compute their meshes.
-# Then knowing their meshes are convex by definition
-# we can use the IntersectionMesher to compute the intersection.
+# Then we can use the IntersectionMesher to compute the intersection.
 
 # %%
 import openturns as ot
@@ -55,7 +54,8 @@ injection2 = [0] + list(range(3, dim))
 cyl2 = otm.Cylinder(base2, extension2, injection2, M)
 
 # %%
-# Compute the mesh of both cylinders
+# Compute the mesh of both cylinders knowing they are convex
+assert cyl1.isConvex() and cyl2.isConvex()
 method = otm.CloudMesher.BASIC
 mesh1 = otm.CloudMesher(method).build(cyl1.getVertices())
 mesh2 = otm.CloudMesher(method).build(cyl2.getVertices())
@@ -78,8 +78,9 @@ graph2.setTitle("Cylinder1 mesh")
 view = otv.View(graph2)
 
 # %%
-# Compute the intersection, we know both meshes are convex by definition
-inter12 = otm.IntersectionMesher().buildConvex([mesh1, mesh2])
+# Compute the intersection using the convex property
+intersectionMesher = otm.IntersectionMesher()
+inter12 = intersectionMesher.buildConvex([mesh1, mesh2])
 
 # %%
 # Plot intersection
@@ -87,6 +88,10 @@ graph = inter12.draw3D(drawEdge, thetaX, thetaY, thetaZ, shading)
 graph.setLegendPosition("upper left")
 graph.setTitle("Cylinder intersection")
 view = otv.View(graph)
+
+# %%
+# Note that IntersectionMesher also knows how to intersect non-convex cylinders
+inter12_cyl = intersectionMesher.buildCylinder([cyl1, cyl2])
 
 # %%
 otv.View.ShowAll()

@@ -68,6 +68,26 @@ namespace OT {
 
 %apply const CylinderCollection & { const OTMESHING::IntersectionMesher::CylinderCollection & };
 
+// SampleCollection typemaps
+%typemap(in) const SampleCollection & {
+  if (SWIG_IsOK(SWIG_ConvertPtr($input, (void **) &$1, $1_descriptor, 0))) {
+    // From interface class, ok
+  } else {
+    try {
+      $1 = OT::buildCollectionFromPySequence< OT::Sample >($input);
+    } catch (const OT::InvalidArgumentException &) {
+      SWIG_exception(SWIG_TypeError, "Object passed as argument is not convertible to a collection of Sample");
+    }
+  }
+}
+
+%typemap(typecheck,precedence=SWIG_TYPECHECK_POINTER) const SampleCollection & {
+  $1 = SWIG_IsOK(SWIG_ConvertPtr($input, NULL, $1_descriptor, 0))
+    || OT::canConvertCollectionObjectFromPySequence< OT::Sample >($input);
+}
+
+%apply const SampleCollection & { const OTMESHING::IntersectionMesher::SampleCollection & };
+
 %include IntersectionMesher_doc.i
 
 %include otmeshing/IntersectionMesher.hxx

@@ -9,6 +9,7 @@ ot.TESTPREAMBLE()
 
 mesher = otmeshing.IntersectionMesher()
 print("mesher=", mesher)
+print(mesher.getRecompress())
 
 # intersection of two cubes
 for compression in [False, True]:
@@ -47,37 +48,35 @@ volume = intersection.getVolume()
 print(f"{dim=} {compression=} intersection={intersection} {volume=:.3g}")
 ott.assert_almost_equal(volume, mesh1.getVolume())
 
-# 3-d example
-N = 10
+# 3-d cylinder intersection: Steinmetz solid
 M = 2
 dim = 3
-xc1 = 0.0
-yc1 = 0.0
-R1 = 1.0
-H1 = 4.0
-yc2 = 0.8
-zc2 = 0.0
-R2 = 0.5
-H2 = 4.0
-nTheta = 16
+R = 2.0
+H = 2.5 * R
+nTheta = 32
 cirle1 = []
 cirle2 = []
+star3 = []
 for i in range(nTheta):
     theta = i * 2.0 * math.pi / nTheta
-    x1 = R1 * math.cos(theta)
-    y1 = R1 * math.sin(theta)
+    x1 = R * math.cos(theta)
+    y1 = R * math.sin(theta)
     cirle1.append([x1, y1])
-    y2 = R2 * math.cos(theta)
-    z2 = R2 * math.sin(theta)
+    y2 = R * math.cos(theta)
+    z2 = R * math.sin(theta)
     cirle2.append([y2, z2])
+    star3.append([x1, y1] if i % 2 == 0 else [x1 * 1.5, y1 * 1.5])
 disc1 = otmeshing.PolygonMesher().build(cirle1)
 disc2 = otmeshing.PolygonMesher().build(cirle2)
+disc3 = otmeshing.PolygonMesher().build(star3)
 
-extension1 = ot.Interval([-H1 / 2] * (dim - 2), [H1 / 2] * (dim - 2))
+extension1 = ot.Interval([-H / 2] * (dim - 2), [H / 2] * (dim - 2))
 injection1 = [2]  # add z component
 cyl1 = otmeshing.Cylinder(disc1, extension1, injection1, M)
+# cylinder3 is non-convex (star-shaped base)
+cyl3 = otmeshing.Cylinder(disc3, extension1, injection1, M)
 
-extension2 = ot.Interval([-H2 / 2] * (dim - 2), [H2 / 2] * (dim - 2))
+extension2 = ot.Interval([-H / 2] * (dim - 2), [H / 2] * (dim - 2))
 injection2 = [0]  # add x component
 cyl2 = otmeshing.Cylinder(disc2, extension2, injection2, M)
 
@@ -85,12 +84,28 @@ mesh1 = otmeshing.CloudMesher().build(cyl1.getVertices())
 mesh2 = otmeshing.CloudMesher().build(cyl2.getVertices())
 # mesh1.exportToVTKFile("mesh1.vtk")
 # mesh2.exportToVTKFile("mesh2.vtk")
+volume_ref = 16.0 / 3.0 * R**3
 
+# compute intersection with buildConvexSample
+assert cyl1.isConvex() and cyl2.isConvex()
+interSample = otmeshing.IntersectionMesher().buildConvexSample([cyl1.getVertices(), cyl2.getVertices()])
+inter12 = otmeshing.CloudMesher().build(interSample)
+volume = inter12.getVolume()
+print("inter(sample) volume=", volume)
+ott.assert_almost_equal(volume, volume_ref, 1e-2)
+
+# compute intersection with buildCylinder
 inter12 = otmeshing.IntersectionMesher().buildCylinder([cyl1, cyl2])
 volume = inter12.getVolume()
-print("inter volume=", volume)
-ott.assert_almost_equal(volume, 1.462974)
+print("inter(cylinder) volume=", volume)
+ott.assert_almost_equal(volume, volume_ref, 1e-2)
 # inter12.exportToVTKFile("inter12.vtk")
+
+# compute non-convex intersection with buildCylinder
+inter32 = otmeshing.IntersectionMesher().buildCylinder([cyl3, cyl2])
+volume = inter32.getVolume()
+print("inter(cylinder, non-convex) volume=", volume)
+ott.assert_almost_equal(volume, 53.4976)
 
 # convex intersection
 for dim in range(2, 6):

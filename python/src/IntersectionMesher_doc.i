@@ -46,6 +46,21 @@ mesh : :py:class:`openturns.Mesh`
 
 // ---------------------------------------------------------------------
 
+%feature("docstring") OTMESHING::IntersectionMesher::buildConvexSample
+"Generate the vertices of the intersection of convexes.
+
+Parameters
+----------
+coll : sequence of :py:class:`openturns.Sample`
+    Input convex vertices.
+
+Returns
+-------
+vertices : :py:class:`openturns.Sample`
+    The vertices of the intersection."
+
+// ---------------------------------------------------------------------
+
 %feature("docstring") OTMESHING::IntersectionMesher::buildCylinder
 "Generate the mesh of the intersection of cylinders.
 
