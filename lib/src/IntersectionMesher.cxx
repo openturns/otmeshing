@@ -197,7 +197,6 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
 
   // initialize cddlib
   dd_ErrorType err = dd_NoError;
-  dd_set_global_constants();
 
   // allocate V-representation
   dd_MatrixPtr m1 = dd_CreateMatrix(dimension + 1, dimension + 1);
@@ -323,7 +322,6 @@ Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
   // free cddlib objects
   dd_FreeMatrix(m1);
   dd_FreeMatrix(m2);
-  dd_free_global_constants();
 
   Mesh result(UnionMesher().build(intersectionColl));
   if (recompress_)
@@ -357,7 +355,6 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
 
   // initialize cddlib
   dd_ErrorType err = dd_NoError;
-  dd_set_global_constants();
 
   // allocate H-representation of intersection
   dd_MatrixPtr intersectionH = dd_CreateMatrix(0, dimension + 1);
@@ -468,7 +465,6 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
   } // if (intersectionVerticesNumber >= (dimension + 1))
 
   dd_FreeMatrix(gen);
-  dd_free_global_constants();
 
   const Mesh result(UnionMesher().build(intersectionColl));
   return result;
@@ -510,6 +506,24 @@ void IntersectionMesher::load(Advocate & adv)
 {
   PersistentObject::load(adv);
   adv.loadAttribute("recompress_", recompress_);
+}
+
+IntersectionMesher_init::IntersectionMesher_init()
+{
+#ifdef OPENTURNS_HAVE_CDDLIB
+  static std::once_flag flag;
+  std::call_once(flag, [&]()
+  {
+    dd_set_global_constants();
+  });
+#endif
+}
+
+IntersectionMesher_init::~IntersectionMesher_init()
+{
+#ifdef OPENTURNS_HAVE_CDDLIB
+  dd_free_global_constants();
+#endif
 }
 
 }
