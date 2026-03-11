@@ -78,6 +78,14 @@ private:
 
 }; /* class IntersectionMesher */
 
+struct OTMESHING_API IntersectionMesher_init
+{
+  IntersectionMesher_init();
+  ~IntersectionMesher_init();
+};
+
+static IntersectionMesher_init __IntersectionMesher_initializer;
+
 }
 
 #endif /* OPENTURNS_INTERVALMESHER_HXX */
