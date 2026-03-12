@@ -69,16 +69,21 @@ for i in range(nTheta):
 disc1 = otmeshing.PolygonMesher().build(cirle1)
 disc2 = otmeshing.PolygonMesher().build(cirle2)
 disc3 = otmeshing.PolygonMesher().build(star3)
+disc4 = ot.IntervalMesher([2] * 2).build(ot.Interval([-20] * 2, [-10] * 2))
 
 extension1 = ot.Interval([-H / 2] * (dim - 2), [H / 2] * (dim - 2))
 injection1 = [2]  # add z component
 cyl1 = otmeshing.Cylinder(disc1, extension1, injection1, M)
-# cylinder3 is non-convex (star-shaped base)
+# cylinder 3 is non-convex (star-shaped base)
 cyl3 = otmeshing.Cylinder(disc3, extension1, injection1, M)
 
 extension2 = ot.Interval([-H / 2] * (dim - 2), [H / 2] * (dim - 2))
 injection2 = [0]  # add x component
 cyl2 = otmeshing.Cylinder(disc2, extension2, injection2, M)
+
+# cylinder 4 is far away
+extension4 = ot.Interval(-50, -40)
+cyl4 = otmeshing.Cylinder(disc4, extension4, injection1, M)
 
 mesh1 = otmeshing.CloudMesher().build(cyl1.getVertices())
 mesh2 = otmeshing.CloudMesher().build(cyl2.getVertices())
@@ -106,6 +111,18 @@ inter32 = otmeshing.IntersectionMesher().buildCylinder([cyl3, cyl2])
 volume = inter32.getVolume()
 print("inter(cylinder, non-convex) volume=", volume)
 ott.assert_almost_equal(volume, 53.4976)
+
+# non-convex only intersection
+inter33 = otmeshing.IntersectionMesher().buildCylinder([cyl3, cyl3])
+ott.assert_almost_equal(inter33.getVolume(), cyl3.getVolume())
+
+# non-convex-only/emtpy intersection
+inter334 = otmeshing.IntersectionMesher().buildCylinder([cyl3, cyl3, cyl4])
+ott.assert_almost_equal(inter334.getVolume(), 0.0)
+
+# convex/empty intersection
+inter24 = otmeshing.IntersectionMesher().buildCylinder([cyl2, cyl4])
+ott.assert_almost_equal(inter24.getVolume(), 0.0)
 
 # convex intersection
 for dim in range(2, 6):

@@ -508,7 +508,7 @@ struct IntersectionMesherCylinderIntersectionPolicy
   inline void operator()(const TBBImplementation::BlockedRange<UnsignedInteger> & r) const
   {
     for (UnsignedInteger i = r.begin(); i != r.end(); ++i)
-      output_[i] = intersectionMesher_.buildConvexSample(Collection<Sample>({input_[i].first, input_[i].second}));
+      output_[i] = intersectionMesher_.buildConvexSample({input_[i].first, input_[i].second});
   }
 };
 
@@ -527,40 +527,62 @@ Mesh IntersectionMesher::buildCylinder(const Collection<Cylinder> & coll) const
   if (size == 0)
     return Mesh(Sample(0, 0));
 
-  // build decomposition of first cylinder
+  // intersect all convex cylinders first
   Collection<Sample> unionCurrent;
-  const Cylinder cylinder0(coll[0]);
-  ConvexDecompositionMesher convexDecompositionMesher;
-  if (cylinder0.isConvex())
-    unionCurrent.add(cylinder0.getVertices());
-  else
+  Indices nonConvex;
+  for (UnsignedInteger i = 0; i < size; ++ i)
   {
+    if (coll[i].isConvex())
+      unionCurrent.add(coll[i].getVertices());
+    else
+      nonConvex.add(i);
+  }
+  if (unionCurrent.getSize() > 1)
+  {
+    const Sample convexIntersection(buildConvexSample(unionCurrent));
+    if (!convexIntersection.getSize())
+      return Mesh(convexIntersection);
+    unionCurrent = {convexIntersection};
+  }
+
+  // if there are only non-convex cylinders we must decompose the first one to initialize unionCurrent
+  ConvexDecompositionMesher convexDecompositionMesher;
+  const UnsignedInteger nonConvexSize = nonConvex.getSize();
+  UnsignedInteger startNonConvex = 0;
+  if (nonConvexSize == size)
+  {
+    // build decomposition of first non-convex cylinder
+    const Cylinder cylinder0(coll[nonConvex[0]]);
     const Collection<Mesh> baseDecomposition(convexDecompositionMesher.build(cylinder0.getBase()));
     const UnsignedInteger baseDecompositionSize = baseDecomposition.getSize();
     for (UnsignedInteger j = 0; j < baseDecompositionSize; ++ j)
     {
-      const Cylinder cylinder0J(baseDecomposition[j], cylinder0.getExtension(), cylinder0.getInjection(), cylinder0.getDiscretization());
+      const Cylinder cylinder0J(baseDecomposition[j],
+                                cylinder0.getExtension(),
+                                cylinder0.getInjection(),
+                                cylinder0.getDiscretization());
       unionCurrent.add(cylinder0J.getVertices());
     }
+
+    // start at index 1
+    startNonConvex = 1;
   }
 
-  // for each cylinder i
-  for (UnsignedInteger i = 1; i < size; ++ i)
+  // for each remaining (non-convex) cylinder i
+  for (UnsignedInteger i = startNonConvex; i < nonConvexSize; ++ i)
   {
-    // build decomposition of cylinder i
+    // build decomposition
     Collection<Sample> unionNext;
-    const Cylinder cylinderI(coll[i]);
-    if (cylinderI.isConvex())
-      unionNext.add(cylinderI.getVertices());
-    else
+    const Cylinder cylinderI(coll[nonConvex[i]]);
+    const Collection<Mesh> baseDecomposition(convexDecompositionMesher.build(cylinderI.getBase()));
+    const UnsignedInteger baseDecompositionSize = baseDecomposition.getSize();
+    for (UnsignedInteger j = 0; j < baseDecompositionSize; ++ j)
     {
-      const Collection<Mesh> baseDecomposition(convexDecompositionMesher.build(cylinderI.getBase()));
-      const UnsignedInteger baseDecompositionSize = baseDecomposition.getSize();
-      for (UnsignedInteger j = 0; j < baseDecompositionSize; ++ j)
-      {
-        const Cylinder cylinderIJ(baseDecomposition[j], cylinderI.getExtension(), cylinderI.getInjection(), cylinderI.getDiscretization());
-        unionNext.add(cylinderIJ.getVertices());
-      }
+      const Cylinder cylinderIJ(baseDecomposition[j],
+                                cylinderI.getExtension(),
+                                cylinderI.getInjection(),
+                                cylinderI.getDiscretization());
+      unionNext.add(cylinderIJ.getVertices());
     }
 
     // build lists of intersections to compute
@@ -581,6 +603,10 @@ Mesh IntersectionMesher::buildCylinder(const Collection<Cylinder> & coll) const
       if (unionCurrent[i0].getSize())
         nonEmpty.add(unionCurrent[i0]);
     unionCurrent = nonEmpty;
+
+    // early exit if there are no non-empty intersections at this stage
+    if (!unionCurrent.getSize())
+      return Mesh(Sample(0, cylinderI.getDimension()));
 
   } // for cylinder i
 
