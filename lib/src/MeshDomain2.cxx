@@ -153,7 +153,7 @@ Sample MeshDomain2::computeDistance(const Sample & points) const
       // Ray casting for general boundary edge list
       UnsignedInteger intersections = 0;
       const Ray2 ray(Point2(points(i, 0), points(i, 1)),
-                     Point2(points(i, 0) + 1.0, points(i, 1))); // horizontal ray
+                     Point2(points(i, 0) + 1.0, points(i, 1) + M_PI));// arbitrary direction
       for (const auto& edge2 : boundary_edges2)
       {
         if (CGAL::do_intersect(ray, edge2))
