@@ -52,6 +52,7 @@ ot_add_python_module( ${PACKAGE_NAME} ${PACKAGE_NAME}_module.i
                       ConvexDecompositionMesher.i ConvexDecompositionMesher_doc.i
                       Cylinder.i Cylinder_doc.i
                       IntersectionMesher.i IntersectionMesher_doc.i
+                      MeshDomain2.i MeshDomain2_doc.i
                       PolygonMesher.i PolygonMesher_doc.i
                       UnionMesher.i UnionMesher_doc.i
                     )
