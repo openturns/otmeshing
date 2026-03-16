@@ -68,69 +68,83 @@ String IntersectionMesher::__str__(const String & ) const
   return __repr__();
 }
 
+struct IntersectionMesherConvexSamplePolicy
+{
+  const IntersectionMesher & intersectionMesher_;
+  const Collection<std::pair<Sample, Sample> > input_;
+  Collection<Sample> & output_;
+
+  IntersectionMesherConvexSamplePolicy(const IntersectionMesher & intersectionMesher,
+                                              const Collection<std::pair<Sample, Sample> > & input,
+                                              Collection<Sample> & output)
+    : intersectionMesher_(intersectionMesher)
+    , input_(input)
+    , output_(output)
+  {}
+
+  inline void operator()(const TBBImplementation::BlockedRange<UnsignedInteger> & r) const
+  {
+    for (UnsignedInteger i = r.begin(); i != r.end(); ++i)
+      output_[i] = intersectionMesher_.buildConvexSample({input_[i].first, input_[i].second});
+  }
+};
+
 Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
   if (size == 0)
     return Mesh(Sample(0, 0));
-  else if (size == 1)
-    return coll[0];
 
-  const UnsignedInteger dimension = coll[0].getDimension();
-  // enabled only for d<=3 as to avoid instanciating huge lists of single-simplex meshes
-  if ((coll.getSize() == 2) && (dimension <= 3))
+  Collection<Sample> unionCurrent;
+
+  // build decomposition of first mesh
+  ConvexDecompositionMesher convexDecompositionMesher;
+  const Collection<Mesh> baseDecomposition0(convexDecompositionMesher.build(coll[0]));
+  const UnsignedInteger baseDecompositionSize0 = baseDecomposition0.getSize();
+  for (UnsignedInteger j = 0; j < baseDecompositionSize0; ++ j)
+    unionCurrent.add(baseDecomposition0[j].getVertices());
+
+  // for each remaining mesh i
+  for (UnsignedInteger i = 1; i < size; ++ i)
   {
-    ConvexDecompositionMesher convexDecompositionMesher;
-    const Collection<Mesh> decomposition1(convexDecompositionMesher.build(coll[0]));
-    const Collection<Mesh> decomposition2(convexDecompositionMesher.build(coll[1]));
-    Sample vertices(0, dimension);
-    Collection<Indices> simplexColl;
-    for (UnsignedInteger i1 = 0; i1 < decomposition1.getSize(); ++ i1)
-    {
-      for (UnsignedInteger i2 = 0; i2 < decomposition2.getSize(); ++ i2)
-      {
-        // TODO: parallelize ?
-        const Mesh intersection12(buildConvex(Collection<Mesh>({decomposition1[i1], decomposition2[i2]})));
-        if (intersection12.isEmpty())
-          continue;
+    // build decomposition
+    Collection<Sample> unionNext;
+    const Collection<Mesh> baseDecomposition(convexDecompositionMesher.build(coll[i]));
+    const UnsignedInteger baseDecompositionSize = baseDecomposition.getSize();
+    for (UnsignedInteger j = 0; j < baseDecompositionSize; ++ j)
+      unionNext.add(baseDecomposition[j].getVertices());
 
-        vertices.add(intersection12.getVertices());
-        const IndicesCollection simplicesI(intersection12.getSimplices());
-        for (UnsignedInteger k = 0; k < simplicesI.getSize(); ++ k)
-        {
-          simplexColl.add(Indices(simplicesI.getImplementation()->cbegin_at(k),
-                                  simplicesI.getImplementation()->cbegin_at(k) + dimension + 1));
-        }
-      }
-    }
-    Mesh result(vertices, IndicesCollection(simplexColl));
-    if (recompress_)
-      result = UnionMesher::CompressMesh(result);
-    return result;
-  } // dim=3
+    // build lists of intersections to compute
+    Collection<std::pair<Sample, Sample> > toDo;
+    for (UnsignedInteger i0 = 0; i0 < unionCurrent.getSize(); ++ i0)
+      for (UnsignedInteger i1 = 0; i1 < unionNext.getSize(); ++ i1)
+        toDo.add(std::pair<Sample, Sample>(unionCurrent[i0], unionNext[i1]));
 
-  // recursively intersect meshes by pairs until the list is reduce to a single element
-  Collection<Mesh> todo(coll);
-  while (todo.getSize() > 1)
-  {
-    Collection<Mesh> done(todo.getSize() / 2);
-    // TODO: parallelize ?
-    for (UnsignedInteger i = 0; i < todo.getSize() / 2; ++ i)
-    {
-      done[i] = build2(todo[2 * i], todo[2 * i + 1]);
+    // loop over intersections
+    const UnsignedInteger toDoSize = toDo.getSize();
+    unionCurrent.resize(toDoSize);
+    const IntersectionMesherConvexSamplePolicy policy(*this, toDo, unionCurrent);
+    TBBImplementation::ParallelFor(0, toDo.getSize(), policy);
 
-      // early exit
-      if (done[i].isEmpty())
-        return done[i];
-    }
+    // prune empty intersections
+    Collection<Sample> nonEmpty;
+    for (UnsignedInteger i0 = 0; i0 < unionCurrent.getSize(); ++ i0)
+      if (unionCurrent[i0].getSize())
+        nonEmpty.add(unionCurrent[i0]);
+    unionCurrent = nonEmpty;
 
-    // report odd element
-    if (todo.getSize() % 2)
-      done.add(todo[todo.getSize() - 1]);
+    // early exit if there are no non-empty intersections at this stage
+    if (!unionCurrent.getSize())
+      return Mesh(Sample(0, coll[i].getDimension()));
 
-    todo = done;
-  }
-  return todo[0];
+  } // for mesh i
+
+  // build mesh of union of remaining intersections
+  CloudMesher cloudMesher;
+  Collection<Mesh> collMesh(unionCurrent.getSize());
+  for (UnsignedInteger i = 0; i < unionCurrent.getSize(); ++ i)
+    collMesh[i] = cloudMesher.build(unionCurrent[i]);
+  return UnionMesher().build(collMesh);
 }
 
 #ifdef OPENTURNS_HAVE_CDDLIB
@@ -179,160 +193,6 @@ String cdd_error_to_string(const dd_ErrorType err)
   }
 }
 #endif
-
-Mesh IntersectionMesher::build2(const Mesh & mesh1, const Mesh & mesh2) const
-{
-  const UnsignedInteger dimension = mesh1.getDimension();
-  if (mesh2.getDimension() != dimension)
-    throw InvalidArgumentException(HERE) << "IntersectionMesher expected meshes of same dimension";
-
-#ifdef OPENTURNS_HAVE_CDDLIB
-  const IndicesCollection simplices1(mesh1.getSimplices());
-  const IndicesCollection simplices2(mesh2.getSimplices());
-  const Sample vertices1(mesh1.getVertices());
-  const Sample vertices2(mesh2.getVertices());
-  const UnsignedInteger ns1 = mesh1.getSimplicesNumber();
-  const UnsignedInteger ns2 = mesh2.getSimplicesNumber();
-
-  CloudMesher cloudMesher;
-  Collection<Mesh> intersectionColl;
-
-  // initialize cddlib
-  dd_ErrorType err = dd_NoError;
-
-  // allocate V-representation
-  dd_MatrixPtr m1 = dd_CreateMatrix(dimension + 1, dimension + 1);
-  dd_SetMatrixRepresentationType(m1, dd_Generator);
-  dd_MatrixPtr m2 = dd_CreateMatrix(dimension + 1, dimension + 1);
-  dd_SetMatrixRepresentationType(m2, dd_Generator);
-  for (UnsignedInteger j = 0; j <= dimension; ++ j)
-  {
-    // homogeneous coordinate
-    dd_set_d(m1->matrix[j][0], 1.0);  
-    dd_set_d(m2->matrix[j][0], 1.0);
-  }
-
-  // mesh1 simplices loop
-  for (UnsignedInteger i1 = 0; i1 < ns1; ++ i1)
-  {
-    Point lower1(dimension, SpecFunc::Infinity);
-    Point upper1(dimension, -SpecFunc::Infinity);
-    // build V-representation of simplex
-    for (UnsignedInteger j = 0; j <= dimension; ++ j)
-    {
-      const UnsignedInteger vi1j = simplices1(i1, j);
-      for (UnsignedInteger k = 0; k < dimension; ++ k)
-      {
-        dd_set_d(m1->matrix[j][k + 1], vertices1(vi1j, k));
-        lower1[k] = std::min(lower1[k], vertices1(vi1j, k));
-        upper1[k] = std::max(upper1[k], vertices1(vi1j, k));
-      }
-    }
-    dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
-    if (err != dd_NoError)
-      throw InternalException(HERE) << "dd_DDMatrix2Poly failed i1=" << i1 << ": " << cdd_error_to_string(err);
-
-    // Convert V-representation to H-representation (inequalities)
-    dd_MatrixPtr h1 = dd_CopyInequalities(p1);
-
-    // mesh2 simplices loop
-    for (UnsignedInteger i2 = 0; i2 < ns2; ++ i2)
-    {
-      Point lower2(dimension, SpecFunc::Infinity);
-      Point upper2(dimension, -SpecFunc::Infinity);
-      // build V-representation of simplex
-      for (UnsignedInteger j = 0; j <= dimension; ++ j)
-      {
-        const UnsignedInteger vi2j = simplices2(i2, j);
-        for (UnsignedInteger k = 0; k < dimension; ++ k)
-        {
-          dd_set_d(m2->matrix[j][k + 1], vertices2(vi2j, k));
-          lower2[k] = std::min(lower2[k], vertices2(vi2j, k));
-          upper2[k] = std::max(upper2[k], vertices2(vi2j, k));
-        }
-      }
-      Bool toSkip = false;
-      for (UnsignedInteger k = 0; k < dimension; ++ k)
-      {
-        toSkip = std::max(lower1[k], lower2[k]) >= std::min(upper1[k], upper2[k]);
-        if (toSkip)
-          break;
-      }
-      if (toSkip)
-        continue;
-
-      dd_PolyhedraPtr p2 = dd_DDMatrix2Poly(m2, &err);
-      if (err != dd_NoError)
-        throw InternalException(HERE) << "dd_DDMatrix2Poly failed i2=" << i2 << ": " << cdd_error_to_string(err);
-
-      // Convert V-representation to H-representation (inequalities)
-      dd_MatrixPtr h2 = dd_CopyInequalities(p2);
-      dd_FreePolyhedra(p2);
-
-      // Combine inequalities to compute intersection
-      dd_MatrixAppendTo(&h2, h1);
-      dd_SetMatrixRepresentationType(h2, dd_Inequality);
-
-      // Convert intersection back to V-representation
-      dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(h2, &err);
-      if (err != dd_NoError)
-        throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection: "  << cdd_error_to_string(err);
-      dd_FreeMatrix(h2);
-
-      // retrieve vertices
-      dd_MatrixPtr gen = dd_CopyGenerators(intersectionV);
-      dd_FreePolyhedra(intersectionV);
-      const UnsignedInteger intersectionVerticesNumber = gen->rowsize; // empty intersection if zero
-      if (intersectionVerticesNumber >= (dimension + 1))
-      {
-        // retrieve vertices
-        Sample intersectionVertices(0, dimension);
-        for (UnsignedInteger i = 0; i < intersectionVerticesNumber; ++i)
-        {
-          // First entry = 1 -> point, 0 -> ray
-          if (dd_get_d(gen->matrix[i][0]) != 1.0)
-            throw InternalException(HERE) << "assumed only points, no rays";
-
-          Point vertex(dimension);
-          for (UnsignedInteger j = 0; j < dimension; ++ j)
-            vertex[j] = dd_get_d(gen->matrix[i][j + 1]);
-          intersectionVertices.add(vertex);
-        }
-
-        // build simplices
-        if (intersectionVerticesNumber == (dimension + 1))
-        {
-          // only one simplex
-          Indices simplex(dimension + 1);
-          simplex.fill(); // orientation may be incorrect
-          const IndicesCollection intersectionSimplices(Collection<Indices>(1, simplex));
-          intersectionColl.add(Mesh(intersectionVertices, intersectionSimplices));
-        }
-        else
-        {
-          // V>d+1, decompose into several simplices
-          const Mesh intersectionMesh(cloudMesher.build(intersectionVertices));
-          intersectionColl.add(intersectionMesh);
-        }
-      } // if (intersectionVerticesNumber >= (dimension + 1))
-    } // mesh2 simplices loop
-    dd_FreeMatrix(h1);
-    dd_FreePolyhedra(p1);
-
-  } // mesh1 simplices loop
-
-  // free cddlib objects
-  dd_FreeMatrix(m1);
-  dd_FreeMatrix(m2);
-
-  Mesh result(UnionMesher().build(intersectionColl));
-  if (recompress_)
-    result = UnionMesher::CompressMesh(result);
-  return result;
-#else
-  throw NotYetImplementedException(HERE) << "No cddlib support";
-#endif
-}
 
 
 Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
@@ -491,27 +351,6 @@ Sample IntersectionMesher::buildConvexSample(const Collection<Sample> & coll) co
 #endif
 }
 
-struct IntersectionMesherCylinderIntersectionPolicy
-{
-  const IntersectionMesher & intersectionMesher_;
-  const Collection<std::pair<Sample, Sample> > input_;
-  Collection<Sample> & output_;
-
-  IntersectionMesherCylinderIntersectionPolicy(const IntersectionMesher & intersectionMesher,
-                                              const Collection<std::pair<Sample, Sample> > & input,
-                                              Collection<Sample> & output)
-    : intersectionMesher_(intersectionMesher)
-    , input_(input)
-    , output_(output)
-  {}
-
-  inline void operator()(const TBBImplementation::BlockedRange<UnsignedInteger> & r) const
-  {
-    for (UnsignedInteger i = r.begin(); i != r.end(); ++i)
-      output_[i] = intersectionMesher_.buildConvexSample({input_[i].first, input_[i].second});
-  }
-};
-
 
 // we intersect the convex cylinders in one pass first (if any) to initialize a list of unions of convexes represented as their vertices
 // the main loop iterates the list of non-convex cylinders, with each cylinder is decomposed as a union of convexes
@@ -592,7 +431,7 @@ Mesh IntersectionMesher::buildCylinder(const Collection<Cylinder> & coll) const
     // loop over intersections
     const UnsignedInteger toDoSize = toDo.getSize();
     unionCurrent.resize(toDoSize);
-    const IntersectionMesherCylinderIntersectionPolicy policy(*this, toDo, unionCurrent);
+    const IntersectionMesherConvexSamplePolicy policy(*this, toDo, unionCurrent);
     TBBImplementation::ParallelFor(0, toDo.getSize(), policy);
 
     // prune empty intersections

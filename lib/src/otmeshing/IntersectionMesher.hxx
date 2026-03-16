@@ -73,9 +73,8 @@ public:
   void load(OT::Advocate & adv) override;
 
 protected:
-  OT::Mesh build2(const OT::Mesh & mesh1, const OT::Mesh & mesh2) const;
-
   OT::Bool recompress_ = true;
+
 private:
 
 }; /* class IntersectionMesher */
