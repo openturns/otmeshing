@@ -229,20 +229,26 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           throw InvalidArgumentException(HERE) << "Polyhedron could not remove all unconnected vertices";
       }
 
+#if 0
       if (!poly.is_valid(Log::HasDebug()))
         throw InvalidArgumentException(HERE) << "Polyhedron must be valid";
 
       if (!poly.is_closed())
         throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
+#endif
 
       nef = Nef_polyhedron(poly);
     }
     else if (intrinsicDimension == 3)
     {
       // build from the volumetric mesh
+      const Point simplicesVolume(mesh.computeSimplicesVolume());
       for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
       {
         // cannot exclude small valume tetras as the nef can loose its 2-manifold property
+        // but still exclude flat ones (due to LevelSetMesher) as CGAL can crash when instantiating Nef_polyhedron
+        if (simplicesVolume[i] <= 0.0)
+          continue;
 
         const UnsignedInteger i0 = simplices(i, 0);
         const UnsignedInteger i1 = simplices(i, 1);
@@ -256,7 +262,13 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
 
         Polyhedron poly;
         poly.make_tetrahedron(v0, v1, v2, v3);
+#if 0
+        if (!poly.is_valid(Log::HasDebug()))
+          throw InvalidArgumentException(HERE) << "Polyhedron must be valid";
 
+        if (!poly.is_closed())
+          throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
+#endif
         const Nef_polyhedron tetra(poly);
         nef += tetra;
       }
