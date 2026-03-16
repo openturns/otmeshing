@@ -6,7 +6,7 @@ import otmeshing as otm
 
 ot.TESTPREAMBLE()
 
-for dim in [2, 3]:
+for dim in range(2, 6):
     # disjoint domain [0,1] U [2,3]
     mesh1 = ot.IntervalMesher([1] * dim).build(ot.Interval([0.0] * dim, [1.0] * dim))
     mesh2 = ot.IntervalMesher([1] * dim).build(ot.Interval([2.0] * dim, [3.0] * dim))

@@ -37,6 +37,9 @@
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
 #include <CGAL/Side_of_triangle_mesh.h>
+#include <CGAL/QP_models.h>
+#include <CGAL/QP_functions.h>
+#include <CGAL/Gmpzf.h>
 
 using namespace OT;
 
@@ -82,9 +85,11 @@ Sample MeshDomain2::computeDistance(const Sample & points) const
   const Mesh mesh(getMesh());
   const Sample vertices(mesh.getVertices());
   const IndicesCollection simplices(mesh.getSimplices());
-  Sample distances(size, 1);
+  Point distances(size, SpecFunc::MaxScalar);
 
-  if (dimension == 2)
+  if (dimension == 1)
+    throw NotYetImplementedException(HERE) << "MeshDomain2.computeDistance d=1";
+  else if (dimension == 2)
   {
     using KernelInexact = CGAL::Exact_predicates_inexact_constructions_kernel;
     using Point2 = KernelInexact::Point_2;
@@ -148,7 +153,7 @@ Sample MeshDomain2::computeDistance(const Sample & points) const
       // distance to closest simplex
       const Point3 query(points(i, 0), points(i, 1), 0.0);
       const Point3 closest = tree.closest_point(query);
-      distances(i, 0) = std::sqrt(CGAL::squared_distance(query, closest));
+      distances[i] = std::sqrt(CGAL::squared_distance(query, closest));
 
       // Ray casting for general boundary edge list
       UnsignedInteger intersections = 0;
@@ -161,8 +166,8 @@ Sample MeshDomain2::computeDistance(const Sample & points) const
       }
       const Bool inside = (intersections % 2) == 1;
       if (inside)
-        distances(i, 0) = -distances(i, 0);
-      LOGDEBUG(OSS() << "query=" << points[i] << " closest=" << Point({closest[0], closest[1]}) << " intersections=" << intersections << " inside=" << inside << " dist=" << distances(i, 0));
+        distances[i] = -distances[i];
+      LOGDEBUG(OSS() << "query=" << points[i] << " closest=" << Point({closest[0], closest[1]}) << " intersections=" << intersections << " inside=" << inside << " dist=" << distances[i]);
     }
   }
   else if (dimension == 3)
@@ -250,18 +255,114 @@ Sample MeshDomain2::computeDistance(const Sample & points) const
       // distance to closest facet
       const Point3 query(points(i, 0), points(i, 1), points(i, 2));
       const Point3 closest = tree.closest_point(query);
-      distances(i, 0) = std::sqrt(CGAL::squared_distance(query, closest));
+      distances[i] = std::sqrt(CGAL::squared_distance(query, closest));
 
       // check whether the point is inside/outside the mesh
       const CGAL::Bounded_side side = insideTester(query);
-      distances(i, 0) = (side == CGAL::ON_BOUNDED_SIDE) ? -distances(i, 0) : distances(i, 0);
+      if (side == CGAL::ON_BOUNDED_SIDE)
+        distances[i] = -distances[i];
 
       LOGDEBUG(OSS() << "query=" << points[i] << " closest=" << Point({closest[0], closest[1], closest[2]}) << " inside=" << (side == CGAL::ON_BOUNDED_SIDE));
     }
   }
   else
-    throw NotYetImplementedException(HERE) << "MeshDomain2 does not support dimension " << dimension;
-  return distances;
+  {
+    using ET = CGAL::MP_Float;
+    using Program = CGAL::Quadratic_program<ET>;
+    using Solution = CGAL::Quadratic_program_solution<ET>;
+
+    // we want to filter out internal facets
+    // external facets are only referenced by one cell
+    std::map<Indices, std::pair<UnsignedInteger, UnsignedInteger> > facetMap;
+    for (UnsignedInteger si = 0; si < simplices.getSize(); ++ si)
+    {
+      // mark all d-dimensional facets
+      for (UnsignedInteger qi = 0; qi <= dimension; ++ qi)
+      {
+        Indices f;
+        for (UnsignedInteger k = 0; k <= dimension; ++k)
+          if (k != qi)
+            f.add(simplices(si, k));
+        std::sort(f.begin(), f.end());
+        auto facetIt = facetMap.find(f);
+        if (facetIt == facetMap.end())
+          facetMap[f] = std::pair<UnsignedInteger, UnsignedInteger>(si, 1);
+        else
+          ++(facetIt->second.second);
+      }
+    }
+
+    for (auto facetIt = facetMap.begin(); facetIt != facetMap.end(); ++ facetIt)
+    {
+      // external facets are marked only once
+      if (facetIt->second.second == 1)
+      {
+        // we want to compute barycentric projection into the facet
+        const Indices facetIndices(facetIt->first);
+        Program qp(CGAL::SMALLER, true, 0.0, false, 0.0);
+        for (UnsignedInteger qi = 0; qi < dimension; ++ qi)
+        {
+          const Point vi(vertices[facetIndices[qi]]);
+          for (UnsignedInteger qj = 0; qj <= qi; ++ qj)
+          {
+            const Point vj(vertices[facetIndices[qj]]);
+            qp.set_d(qi, qj, 2.0 * vi.dot(vj));
+          }
+        }
+
+        // Constraint: sum_i lambda_i = 1
+        for (UnsignedInteger qi = 0; qi < dimension; ++ qi)
+          qp.set_a(qi, 0 , 1.0);
+        qp.set_b(0, 1.0);
+        qp.set_r(0, CGAL::EQUAL);
+
+        // for each input point
+        for (UnsignedInteger i = 0; i < size; ++ i)
+        {
+          // Linear term
+          for (UnsignedInteger qi = 0; qi < dimension; ++ qi)
+          {
+            const Point vi(vertices[facetIndices[qi]]);
+            qp.set_c(qi, -2.0 * vi.dot(points[i]));
+          }
+
+          const Solution s = CGAL::solve_quadratic_program(qp, ET());
+          if (s.status() != CGAL::QP_OPTIMAL)
+            throw InternalException(HERE) << "QP failed";
+
+          // Extract barycentric coordinates
+          Point lambda(dimension);
+          UnsignedInteger idx = 0;
+          for (auto it=s.variable_values_begin(); it != s.variable_values_end(); ++it)
+          {
+            lambda[idx] = CGAL::to_double(*it);
+            ++ idx;
+          }
+
+          // compute closest point
+          Point x(dimension, 0.0);
+          for (UnsignedInteger qi = 0; qi< dimension; ++ qi)
+          {
+            const Point vi(vertices[facetIndices[qi]]);
+            for (UnsignedInteger k = 0; k < dimension; ++ k)
+              x[k] += lambda[qi] * vi[k];
+          }
+
+          // compute distance
+          const Scalar distance = (points[i] - x).norm();
+          distances[i] = std::min(distances[i], distance);
+
+        } // for i
+      } // if external facet
+    } // for facetIt
+
+    const BoolCollection inside(contains(points));
+    for (UnsignedInteger i = 0; i < size; ++ i)
+      if (inside[i])
+        distances[i] = -distances[i];
+
+  } // dimension > 3
+  return Sample::BuildFromPoint(distances);
 }
 
 }
