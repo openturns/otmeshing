@@ -22,100 +22,12 @@
 
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
-
-#include <nanoflann.hpp>
-#if NANOFLANN_VERSION < 0x150
-namespace nanoflann
-{
-using SearchParameters = SearchParams;
-}
-#endif
+#include <openturns/KDTree.hxx>
 
 using namespace OT;
 
 namespace OTMESHING
 {
-
-class KDTreeSampleAdaptor
-{
-public:
-  explicit KDTreeSampleAdaptor(const Sample & points)
-    : data_(points.getImplementation()->data())
-    , size_(points.getSize())
-    , dimension_(points.getDimension())
-  {
-  }
-
-  inline size_t kdtree_get_point_count() const
-  {
-    return size_;
-  }
-
-  inline Scalar kdtree_get_pt(const size_t idx, const size_t dim) const
-  {
-    return data_[dim + idx * dimension_];
-  }
-
-  template <class BBOX>
-  bool kdtree_get_bbox(BBOX & /*bb*/) const
-  {
-    return false;
-  }
-
-private:
-  const Scalar *data_ = nullptr;
-  UnsignedInteger size_ = 0;
-  UnsignedInteger dimension_ = 0;
-};
-
-using nano_kd_tree_t = nanoflann::KDTreeSingleIndexAdaptor <
-                       nanoflann::L2_Simple_Adaptor<Scalar, KDTreeSampleAdaptor >,
-                       KDTreeSampleAdaptor, -1 >;
-
-class KDTree2
-{
-public:
-  explicit KDTree2(const Sample & points)
-  {
-    const UnsignedInteger dimension = points.getDimension();
-    sampleAdaptor_ = new KDTreeSampleAdaptor(points);
-    nanoflann::KDTreeSingleIndexAdaptorParams indexParameters;
-    indexParameters.leaf_max_size = ResourceMap::GetAsUnsignedInteger("KDTree-leaf_max_size");
-#if NANOFLANN_VERSION >= 0x150
-    indexParameters.n_thread_build = ResourceMap::GetAsUnsignedInteger("KDTree-n_thread_build");
-#endif
-    indexAdaptor_ = new nano_kd_tree_t(dimension, *sampleAdaptor_, indexParameters);
-  }
-
-  Indices queryRadius(const Point & x, const Scalar radius, Point & distanceOut, const Bool sorted = false) const
-  {
-#if NANOFLANN_VERSION >= 0x140
-    using IndexType = unsigned int;
-#else
-    using IndexType = long unsigned int;
-#endif
-#if NANOFLANN_VERSION >= 0x150
-    std::vector<nanoflann::ResultItem<IndexType, double> > indicesDists;
-#else
-    std::vector<std::pair<IndexType, double> > indicesDists;
-#endif
-    nanoflann::SearchParameters searchParameters;
-    searchParameters.sorted = sorted;
-    const UnsignedInteger nFound = indexAdaptor_->radiusSearch(x.data(), radius * radius, indicesDists, searchParameters);
-    Indices result(nFound);
-    distanceOut.resize(nFound);
-    for(UnsignedInteger k = 0; k < nFound; ++ k)
-    {
-      result[k] = indicesDists[k].first;
-      distanceOut[k] = std::sqrt(indicesDists[k].second);
-    }
-    return result;
-  }
-
-private:
-  Pointer<KDTreeSampleAdaptor> sampleAdaptor_;
-  Pointer<nano_kd_tree_t> indexAdaptor_;
-};
 
 CLASSNAMEINIT(UnionMesher)
 static const Factory<UnionMesher> Factory_UnionMesher;
@@ -158,7 +70,7 @@ Mesh UnionMesher::CompressMesh(const Mesh & mesh)
     return mesh;
   IndicesCollection simplices(mesh.getSimplices());
   Indices compressedVertexMap(fullSize, fullSize);
-  const KDTree2 tree(vertices);
+  const KDTree tree(vertices);
   const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
   Indices usedVertex(fullSize, 0);
   for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
