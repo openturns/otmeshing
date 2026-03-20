@@ -134,7 +134,8 @@ Scalar Cylinder::getVolume() const
 /* Convex flag */
 Bool Cylinder::isConvex() const
 {
-  return ConvexDecompositionMesher::IsConvex(base_);
+  // mesh returned by LevelSetMesher does not have the convexity flag but might still be convex
+  return base_.isConvex() || ConvexDecompositionMesher::IsConvex(base_);
 }
 
 /* Base accessor */

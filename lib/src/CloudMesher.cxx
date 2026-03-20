@@ -96,7 +96,9 @@ Mesh buildTriangulation(const Sample & points)
     }
     ++ simplexIndex;
   }
-  return Mesh(vertices, simplices);
+  Mesh result(vertices, simplices);
+  result.setIsConvex(true);
+  return result;
 }
 
 
@@ -116,7 +118,9 @@ Mesh CloudMesher::build(const Sample & points) const
     vertices.add(points.getMax());
     IndicesCollection simplices(1, dimension + 1);
     simplices(0, 1) = 1;
-    return Mesh(vertices, simplices);
+    Mesh result(vertices, simplices);
+    result.setIsConvex(true);
+    return result;
   }
 
 #if 0

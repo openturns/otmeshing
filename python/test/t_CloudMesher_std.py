@@ -18,6 +18,7 @@ assert triangulation.getDimension() == 2
 assert len(triangulation.getSimplices()) == 3
 assert triangulation.isValid()
 ott.assert_almost_equal(vol, 0.6125)
+assert triangulation.isConvex()
 
 # nd triangulation of the unit hypercube
 for method in [otmeshing.CloudMesher.BASIC, otmeshing.CloudMesher.DELAUNAY]:
@@ -33,6 +34,7 @@ for method in [otmeshing.CloudMesher.BASIC, otmeshing.CloudMesher.DELAUNAY]:
             assert len(triangulation.getVertices()) == len(vertices)
         assert triangulation.isValid()
         ott.assert_almost_equal(vol, 1.0)
+        assert triangulation.isConvex()
 
 # nd triangulation of the unit hypersphere
 mesher = otmeshing.CloudMesher()
@@ -51,3 +53,4 @@ for dim in range(1, 5):
     assert triangulation.isValid()
     vol_ref = math.pi**(dim / 2) / math.gamma(dim / 2 + 1)
     ott.assert_almost_equal(vol, vol_ref, 0.1, 0.0)
+    assert triangulation.isConvex()
