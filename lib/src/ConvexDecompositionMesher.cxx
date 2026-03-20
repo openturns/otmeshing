@@ -247,7 +247,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       {
         // cannot exclude small valume tetras as the nef can loose its 2-manifold property
         // but still exclude flat ones (due to LevelSetMesher) as CGAL can crash when instantiating Nef_polyhedron
-        if (simplicesVolume[i] <= 0.0)
+        if (!(simplicesVolume[i] > SpecFunc::Precision))
           continue;
 
         const UnsignedInteger i0 = simplices(i, 0);
