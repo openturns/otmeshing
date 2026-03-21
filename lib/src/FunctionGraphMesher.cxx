@@ -117,6 +117,8 @@ Mesh FunctionGraphMesher::build(const OT::Function & function,
   // Move the vertices of the initial mesh according to these values
   Sample vertices(initialMesh.getVertices());
   Point point(inputDiscretization_.getSize());
+  const Scalar a = (subGraph ? minOutput : maxOutput);
+  const Scalar b = (subGraph ? maxOutput : minOutput);
   for (UnsignedInteger i = 0; i < vertices.getSize(); ++ i)
   {
     index = 0;
@@ -129,12 +131,9 @@ Mesh FunctionGraphMesher::build(const OT::Function & function,
       }
       const UnsignedInteger baseIndex = kdTree_.query(point);
       const Scalar value = std::clamp(outputValues[baseIndex], minOutput, maxOutput);
-      if (subGraph)
-        vertices(i, outputIndex) = minOutput + (value - minOutput) * (vertices(i, outputIndex) - minOutput) / (maxOutput - minOutput);
-      else
-        vertices(i, outputIndex) = maxOutput + (value - maxOutput) * (vertices(i, outputIndex) - maxOutput) / (minOutput - maxOutput);
-    }
-  }
+      vertices(i, outputIndex) = a + (value - a) * (vertices(i, outputIndex) - a) / (b - a);
+    } // for j
+  } // for i
   Mesh result(vertices, initialMesh.getSimplices());
   result.setName(function.getName());
   result.setDescription(description);
