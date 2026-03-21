@@ -48,7 +48,8 @@ public:
   ConvexDecompositionMesher * clone() const override;
 
   /** example of a func that return a point squared. **/
-  OT::Collection<OT::Mesh> build(const OT::Mesh & mesh) const;
+  OT::Collection<OT::Mesh> build(const OT::Mesh & mesh,
+				 const OT::Bool useSimplicesDecomposition=false) const;
 
   /** String converter */
   OT::String __repr__() const override;
