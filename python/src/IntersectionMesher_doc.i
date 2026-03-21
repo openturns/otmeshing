@@ -95,3 +95,25 @@ Returns
 recompress : bool
     Whether to eliminate duplicate vertices.
 "
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::IntersectionMesher::setUseSimplicesDecomposition
+"Simplicial decomposition flag accessor.
+
+Parameters
+----------
+useSimplicesDecomposition : bool
+    Whether to decompose the mesh by its simplices.
+"
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::IntersectionMesher::getUseSimplicesDecomposition
+"Simplicial decomposition flag accessor.
+
+Returns
+-------
+useSimplicesDecomposition : bool
+    Whether to decompose the mesh by its simplices.
+"
