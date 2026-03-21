@@ -73,7 +73,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   const IndicesCollection simplices(mesh.getSimplices());
   Collection<Mesh> result;
 
-  if (dimension == 2)
+  if (dimension == 2 && !useSimplicesDecomposition_)
   {
     using KernelInexact = CGAL::Exact_predicates_inexact_constructions_kernel;
     using Point_2 = KernelInexact::Point_2;
@@ -192,7 +192,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       }
     }
   }
-  else if (dimension == 3)
+  else if (dimension == 3 && !useSimplicesDecomposition_)
   {
     using KernelExact = CGAL::Exact_predicates_exact_constructions_kernel;
     using Polyhedron = CGAL::Polyhedron_3<KernelExact>;
@@ -247,7 +247,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
       {
         // cannot exclude small valume tetras as the nef can loose its 2-manifold property
         // but still exclude flat ones (due to LevelSetMesher) as CGAL can crash when instantiating Nef_polyhedron
-        if (!(simplicesVolume[i] > SpecFunc::Precision))
+        if (simplicesVolume[i] <= 0.0)
           continue;
 
         const UnsignedInteger i0 = simplices(i, 0);
@@ -391,6 +391,17 @@ Bool ConvexDecompositionMesher::IsConvex(const Mesh & mesh)
   return (vc > 0.0) && (std::abs((vm - vc) / vc) < std::sqrt(SpecFunc::Precision));
 }
 
+/* Simplices decomposition flag */
+void ConvexDecompositionMesher::setUseSimplicesDecomposition(const Bool useSimplicesDecomposition)
+{
+  useSimplicesDecomposition_ = useSimplicesDecomposition;
+}
+
+Bool ConvexDecompositionMesher::getUseSimplicesDecomposition() const
+{
+  return useSimplicesDecomposition_;
+}
+
 /* String converter */
 String ConvexDecompositionMesher::__repr__() const
 {
@@ -403,12 +414,14 @@ String ConvexDecompositionMesher::__repr__() const
 void ConvexDecompositionMesher::save(Advocate & adv) const
 {
   PersistentObject::save(adv);
+  adv.saveAttribute("useSimplicesDecomposition_", useSimplicesDecomposition_);
 }
 
 /* Method load() reloads the object from the StorageManager */
 void ConvexDecompositionMesher::load(Advocate & adv)
 {
   PersistentObject::load(adv);
+  adv.loadAttribute("useSimplicesDecomposition_", useSimplicesDecomposition_);
 }
 
 

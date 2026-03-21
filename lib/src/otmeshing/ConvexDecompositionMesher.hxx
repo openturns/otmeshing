@@ -56,13 +56,18 @@ public:
   /** Check if mesh is convex */
   static OT::Bool IsConvex(const OT::Mesh & mesh);
 
+  /** Simplices decomposition flag */
+  void setUseSimplicesDecomposition(const OT::Bool useSimplicesDecomposition);
+  OT::Bool getUseSimplicesDecomposition() const;
+  
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
 
   /** Method load() reloads the object from the StorageManager */
   void load(OT::Advocate & adv) override;
 
-private:
+protected:
+  OT::Bool useSimplicesDecomposition_ = false;
 
 }; /* class ConvexDecompositionMesher */
 

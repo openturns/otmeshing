@@ -33,3 +33,25 @@ Returns
 isConvex : bool
     Whether the mesh is convex.
 "
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::ConvexDecompositionMesher::setUseSimplicesDecomposition
+"Simplicial decomposition flag accessor.
+
+Parameters
+----------
+useSimplicesDecomposition : bool
+    Whether to decompose the mesh by its simplices.
+"
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::ConvexDecompositionMesher::getUseSimplicesDecomposition
+"Simplicial decomposition flag accessor.
+
+Returns
+-------
+useSimplicesDecomposition : bool
+    Whether to decompose the mesh by its simplices.
+"
