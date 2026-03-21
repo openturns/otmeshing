@@ -54,6 +54,11 @@ if (cddlib_FOUND)
   target_link_libraries(otmeshing PRIVATE ${CDDLIB_LIBRARIES})
 endif ()
 
+if (TBB_FOUND)
+  target_compile_definitions (otmeshing PRIVATE OPENTURNS_HAVE_TBB)
+  target_link_libraries (otmeshing PRIVATE TBB::tbb)
+endif ()
+
 # Add targets to the build-tree export set
 export (TARGETS otmeshing FILE ${PROJECT_BINARY_DIR}/otmeshing-Targets.cmake)
 
