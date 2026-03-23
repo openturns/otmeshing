@@ -46,12 +46,20 @@ FunctionGraphMesher::FunctionGraphMesher(const Interval & inputInterval,
   , inputInterval_(inputInterval)
   , inputDiscretization_(inputDiscretization)
 {
-  if (inputDiscretization.getSize() != inputInterval_.getDimension())
-    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected a discretization of dimension " <<  inputInterval_.getDimension() << " got " << inputDiscretization.getSize();  
-  minInput_ = inputInterval.getLowerBound();
-  maxInput_ = inputInterval.getUpperBound();
-  inputVertices_ = IntervalMesher(inputDiscretization).build(inputInterval).getVertices();
-  kdTree_ = KDTree(inputVertices_);
+  initialize();
+}
+
+void FunctionGraphMesher::initialize()
+{
+  if (inputDiscretization_.getSize() != inputInterval_.getDimension())
+    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected a discretization of dimension " <<  inputInterval_.getDimension() << " got " << inputDiscretization_.getSize();
+  minInput_ = inputInterval_.getLowerBound();
+  maxInput_ = inputInterval_.getUpperBound();
+  if (inputInterval_.getDimension())
+  {
+    inputVertices_ = IntervalMesher(inputDiscretization_).build(inputInterval_).getVertices();
+    kdTree_ = KDTree(inputVertices_);
+  }
 }
 
 /* Virtual constructor */
@@ -144,12 +152,17 @@ Mesh FunctionGraphMesher::build(const OT::Function & function,
 void FunctionGraphMesher::save(Advocate & adv) const
 {
   PersistentObject::save(adv);
+  adv.saveAttribute("inputInterval_", inputInterval_);
+  adv.saveAttribute("inputDiscretization_", inputDiscretization_);
 }
 
 /* Method load() reloads the object from the StorageManager */
 void FunctionGraphMesher::load(Advocate & adv)
 {
   PersistentObject::load(adv);
+  adv.loadAttribute("inputInterval_", inputInterval_);
+  adv.loadAttribute("inputDiscretization_", inputDiscretization_);
+  initialize();
 }
 
 }

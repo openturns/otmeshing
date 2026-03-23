@@ -70,8 +70,11 @@ public:
   void load(OT::Advocate & adv) override;
 
 protected:
+  void initialize();
+
   OT::Interval inputInterval_;
   OT::Indices inputDiscretization_;
+
   OT::Point minInput_;
   OT::Point maxInput_;
   OT::Sample inputVertices_;
