@@ -159,7 +159,7 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
     {
       const UnsignedInteger actualBlockSize = std::min(blockSize, toDoSize - done);
       const IntersectionMesherConvexSamplePolicy policy(*this, unionCurrent, unionNext, done, resultChunk);
-      TBBImplementation::ParallelForIf(false, 0, actualBlockSize, policy);
+      TBBImplementation::ParallelFor(0, actualBlockSize, policy);
 
       // prune empty intersections
       for (UnsignedInteger i0 = 0; i0 < actualBlockSize; ++ i0)
