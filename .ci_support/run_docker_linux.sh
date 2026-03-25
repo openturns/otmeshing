@@ -2,6 +2,8 @@
 
 set -xe
 
+yay -S python-pyvista --noconfirm
+
 cd /tmp
 cmake -DCMAKE_INSTALL_PREFIX=${HOME}/.local \
       -DCMAKE_UNITY_BUILD=ON \

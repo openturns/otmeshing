@@ -79,7 +79,7 @@ sphinx_gallery_conf = {
     'examples_dirs': ['examples'], # path to example scripts
     'gallery_dirs': ['auto_examples'], # path to where to save gallery gen. output
     'show_signature': False,
-    "download_all_examples": False,
+    'download_all_examples': False,
     # directory where function/class granular galleries are stored
     "backreferences_dir": "gen_modules/backreferences",
     # Modules for which function/class level galleries are created.
@@ -92,7 +92,13 @@ sphinx_gallery_conf = {
     "min_reported_time": 1e6,
     # omit computation times from all gallery outputs
     "write_computation_times": False,
+    "ignore_pattern": "(full)",
 }
+
+import pyvista as pv
+pv.BUILDING_GALLERY = True
+pv.OFF_SCREEN = True
+sphinx_gallery_conf["image_scrapers"] = ("matplotlib", "pyvista",)
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
