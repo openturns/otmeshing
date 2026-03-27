@@ -1,6 +1,6 @@
 """
-Real-world example
-==================
+Application example
+===================
 """
 
 # %%
@@ -10,11 +10,13 @@ Real-world example
 # Assume that this set is contained inside of a known bounding box
 # :math:`[\mathbf{a}, \mathbf{b}]`, and that a point :math:`\mathbf{x}` in :math:`\mathbb{R}^n` is admissible
 # if and only if it satisfies a set of constraints :math:`(C_j(\mathbf{x})\leq 0)_{j=1,...,J}`,
-# where each of the :math:`C_j` acts only on a low dimensional part :math:`\tilde{\mathbf{x}}\in\mathbb{R}^{n_j}` of :math:`\mathbf{x}`.
+# where each of the :math:`C_j` acts only on a low dimensional part
+# :math:`\tilde{\mathbf{x}}\in\mathbb{R}^{n_j}` of :math:`\mathbf{x}`.
 # The constraints are defined using one of the following options:
 #
 #  * The point :math:`\tilde{\mathbf{x}}` must be inside of the convex hull of a set of points in arbitrary dimension;
-#  * The point :math:`\tilde{\mathbf{x}}` must be inside of a polygon in dimension 2, given by the collection of its vertices;
+#  * The point :math:`\tilde{\mathbf{x}}` must be inside of a polygon in dimension 2,
+#    given by the collection of its vertices;
 #  * The point :math:`\tilde{\mathbf{x}}` must be inside of a given mesh in arbitrary dimension;
 #  * The point :math:`\tilde{\mathbf{x}}` must be inside of a sub-graph:
 #    there is a function :math:`f_j:\mathbb{R}^{n_j-1}\rightarrow\mathbb{R}`
