@@ -89,10 +89,15 @@ public:
 
   Indices queryRadius(const Point & x, const Scalar radius, Point & distanceOut, const Bool sorted = false) const
   {
-#if NANOFLANN_VERSION >= 0x150
-    std::vector<nanoflann::ResultItem<unsigned int, Scalar> > indicesDists;
+#if NANOFLANN_VERSION >= 0x140
+    using IndexType = unsigned int;
 #else
-    std::vector<std::pair<UnsignedInteger, Scalar> > indicesDists;
+    using IndexType = long unsigned int;
+#endif
+#if NANOFLANN_VERSION >= 0x150
+    std::vector<nanoflann::ResultItem<IndexType, double> > indicesDists;
+#else
+    std::vector<std::pair<IndexType, double> > indicesDists;
 #endif
     nanoflann::SearchParameters searchParameters;
     searchParameters.sorted = sorted;
