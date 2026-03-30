@@ -13,6 +13,11 @@ BuildRequires:  gcc-c++, cmake, swig
 BuildRequires:  openturns-devel
 BuildRequires:  python3-openturns
 BuildRequires:  python3-devel
+BuildRequires:  CGAL-devel
+BuildRequires:  cddlib-devel
+BuildRequires:  qhull-devel
+BuildRequires:  eigen3-devel
+BuildRequires:  nanoflann-devel
 Requires:       libotmeshing0
 
 %description
