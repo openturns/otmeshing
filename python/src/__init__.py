@@ -15,5 +15,5 @@ import openturns as _ot
 
 from .otmeshing import *
 
-__version__ = '0.0'
+__version__ = '0.1'
 
