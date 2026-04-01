@@ -12,6 +12,7 @@ Build-Depends: debhelper-compat (= 12),
                libqhull-dev,
                libnanoflann-dev,
                libeigen3-dev,
+               libtbb-dev,
                python3-openturns,
                python3-dev,
                swig

@@ -18,6 +18,7 @@ BuildRequires:  cddlib-devel
 BuildRequires:  qhull-devel
 BuildRequires:  eigen3-devel
 BuildRequires:  nanoflann-devel
+BuildRequires:  tbb-devel
 Requires:       libotmeshing0
 
 %description
