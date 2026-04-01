@@ -56,7 +56,7 @@ endif ()
 
 if (TBB_FOUND)
   target_compile_definitions (otmeshing PRIVATE OPENTURNS_HAVE_TBB)
-  target_link_libraries (otmeshing PRIVATE TBB::tbb)
+  target_link_libraries (otmeshing PRIVATE ${TBB_LIBRARIES})
 endif ()
 
 # Add targets to the build-tree export set
