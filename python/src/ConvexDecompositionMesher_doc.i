@@ -1,5 +1,13 @@
 %feature("docstring") OTMESHING::ConvexDecompositionMesher
-"Build a convex decomposition."
+"Build a convex decomposition.
+
+Notes
+-----
+The following keys in :class:`openturns.ResourceMap` can be configured:
+
+- *ConvexDecompositionMesher-Threshold*: concavity threshold for CoACD
+  decomposition (default=0.05).
+"
 
 // ---------------------------------------------------------------------
 

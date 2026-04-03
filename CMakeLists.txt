@@ -45,6 +45,12 @@ if (USE_TBB AND cddlib_VERSION STRGREATER_EQUAL "0.94n")
   endif ()
 endif ()
 
+option (USE_COACD "Use CoACD for approximate convex decomposition" ON)
+if (USE_COACD)
+  find_package (CoACD CONFIG)
+  message (STATUS "Found CoACD: ${CoACD_DIR}")
+endif ()
+
 if (NOT BUILD_SHARED_LIBS)
   list ( APPEND OTMESHING_DEFINITIONS "-DOTMESHING_STATIC" )
 endif ()

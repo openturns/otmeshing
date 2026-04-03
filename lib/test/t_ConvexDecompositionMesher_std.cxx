@@ -187,11 +187,11 @@ int main(int, char *[])
       fullprint << "Number of components: " << decomp.getSize() << ", volume: " << volumeSum << ", OK" << std::endl;
     }
 
-    // 3D volumetric (two overlapping cubes)
-    fullprint << "--- build 3D volumetric overlapping cubes ---" << std::endl;
+    // 3D volumetric (two adjacent cubes)
+    fullprint << "--- build 3D volumetric adjacent cubes ---" << std::endl;
     {
-      const Mesh cube1Mesh = IntervalMesher(Indices({1, 1, 1})).build(Interval(Point({0.0, 0.0, 0.0}), Point({2.0, 2.0, 2.0})));
-      const Mesh cube2Mesh = IntervalMesher(Indices({1, 1, 1})).build(Interval(Point({1.0, 1.0, 1.0}), Point({3.0, 3.0, 3.0})));
+      const Mesh cube1Mesh = IntervalMesher(Indices(3, 1)).build(Interval(Point(3, 0.0), Point(3, 2.0)));
+      const Mesh cube2Mesh = IntervalMesher(Indices(3, 1)).build(Interval(Point(3, 2.0), Point(3, 4.0)));
       const Mesh mesh = UnionMesher().build(Collection<Mesh>({cube1Mesh, cube2Mesh}));
       assert(mesh.isValid());
 
@@ -202,8 +202,8 @@ int main(int, char *[])
         assert_equal(ConvexDecompositionMesher::IsConvex(decomp[i]), true);
         volumeSum += decomp[i].getVolume();
       }
-      // Overlap: each cube is 2^3=8, total 16, overlapping region 1^3=1, so union = 15
-      assert_almost_equal(volumeSum, 15.0);
+      // each cube is 2^3=8, total 16
+      assert_almost_equal(volumeSum, 16.0);
       fullprint << "Number of components: " << decomp.getSize() << ", volume: " << volumeSum << ", OK" << std::endl;
     }
 

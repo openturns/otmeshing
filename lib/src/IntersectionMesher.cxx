@@ -533,6 +533,7 @@ struct IntersectionMesher_init
   IntersectionMesher_init()
   {
     ResourceMap::AddAsUnsignedInteger("IntersectionMesher-BlockSize", 1 << 16);
+    ResourceMap::AddAsScalar("ConvexDecompositionMesher-Threshold", 0.05);
 #ifdef OPENTURNS_HAVE_CDDLIB
     dd_set_global_constants();
 #endif
