@@ -44,6 +44,13 @@
 #include <CGAL/convex_hull_2.h>
 #include <CGAL/Polygon_2.h>
 
+#include <queue>
+#include <set>
+
+#ifdef OPENTURNS_HAVE_COACD
+#include <CoACD/coacd.h>
+#endif
+
 using namespace OT;
 
 
@@ -206,17 +213,17 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
   }
   else if (dimension == 3 && !useSimplicesDecomposition_)
   {
-    using KernelExact = CGAL::Exact_predicates_exact_constructions_kernel;
-    using Polyhedron = CGAL::Polyhedron_3<KernelExact>;
-    using HDS = Polyhedron::HalfedgeDS;
-    using Nef_polyhedron = CGAL::Nef_polyhedron_3<KernelExact>;
-    using Point_3 = KernelExact::Point_3;
-
-    Nef_polyhedron nef;
     if (intrinsicDimension == 2)
     {
-      // build from the surface mesh
-      Polyhedron poly;
+      // Surface mesh: use CGAL exact convex decomposition (coacd returns open patches)
+      using KernelExact = CGAL::Exact_predicates_exact_constructions_kernel;
+      using Polyhedron3 = CGAL::Polyhedron_3<KernelExact>;
+      using HDS = Polyhedron3::HalfedgeDS;
+      using Nef_polyhedron3 = CGAL::Nef_polyhedron_3<KernelExact>;
+      using Point_3 = KernelExact::Point_3;
+
+      // Build Nef polyhedron from surface mesh
+      Polyhedron3 poly;
       CGAL::Polyhedron_incremental_builder_3<HDS> builder(poly.hds(), true);
       builder.begin_surface(vertices.getSize(), simplices.getSize());
       for (UnsignedInteger i = 0; i < vertices.getSize(); ++ i)
@@ -232,64 +239,354 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
         builder.end_facet();
       }
       builder.end_surface();
-
-      // we have to check unconnected vertices otherwise older CGAL crashes when converting to Nef_polyhedron
       if (builder.check_unconnected_vertices())
       {
         LOGINFO("ConvexDecompositionMesher detected unconnected vertices, removing");
         if (!builder.remove_unconnected_vertices())
           throw InvalidArgumentException(HERE) << "Polyhedron could not remove all unconnected vertices";
       }
+      Nef_polyhedron3 nef(poly);
 
-#if 0
-      if (!poly.is_valid(Log::HasDebug()))
-        throw InvalidArgumentException(HERE) << "Polyhedron must be valid";
+      // Extract convex components
+      CGAL::convex_decomposition_3(nef);
 
-      if (!poly.is_closed())
-        throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
-#endif
+      // the first volume is the outer volume, which is ignored in the decomposition
+      for (auto ci = ++nef.volumes_begin(); ci != nef.volumes_end(); ++ci)
+      {
+        if (ci->mark())
+        {
+          Polyhedron3 part;
+          nef.convert_inner_shell_to_polyhedron(ci->shells_begin(), part);
+          if (part.empty()) continue;
 
-      nef = Nef_polyhedron(poly);
+          CGAL::Polygon_mesh_processing::triangulate_faces(part);
+
+          Sample verticesI(part.size_of_vertices(), dimension);
+          std::unordered_map<typename Polyhedron3::Vertex_const_handle, UnsignedInteger> vertexToIndexMap;
+          UnsignedInteger vertexIndex = 0;
+          for (auto vi = part.vertices_begin(); vi != part.vertices_end(); ++ vi)
+          {
+            const Point_3 & p = vi->point();
+            for (UnsignedInteger j = 0; j < dimension; ++ j)
+              verticesI(vertexIndex, j) = CGAL::to_double(p[j]);
+            vertexToIndexMap[vi] = vertexIndex;
+            ++ vertexIndex;
+          }
+
+          // arbitrarily select the apex as the first vertex
+          const UnsignedInteger apexIndex = vertexToIndexMap[part.vertices_begin()];
+
+          // build simplices
+          Collection<Indices> simplexColl;
+          for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
+          {
+            auto h = f->facet_begin();
+            Bool ok = true;
+            for (UnsignedInteger j = 0; j < dimension; ++ j)
+            {
+              if (vertexToIndexMap[h->vertex()] == apexIndex)
+              {
+                ok = false;
+                break;
+              }
+              ++ h;
+            }
+            if (ok)
+            {
+              h = f->facet_begin();
+              Indices simplex(dimension + 1);
+              simplex[0] = apexIndex;
+              for (UnsignedInteger j = 0; j < dimension; ++ j)
+              {
+                simplex[j + 1] = vertexToIndexMap[h->vertex()];
+                ++ h;
+              }
+              simplexColl.add(simplex);
+            }
+          }
+
+          // remove unused vertices
+          Indices usedVertices(verticesI.getSize());
+          for (const auto & simplex : simplexColl)
+            for (const UnsignedInteger vi : simplex)
+              usedVertices[vi] = 1;
+
+          Indices oldToNew(verticesI.getSize());
+          Sample verticesICompact(0, dimension);
+          for (UnsignedInteger i = 0; i < verticesI.getSize(); ++ i)
+          {
+            if (usedVertices[i])
+            {
+              Point p(dimension);
+              for (UnsignedInteger j = 0; j < dimension; ++ j)
+                p[j] = verticesI(i, j);
+              verticesICompact.add(p);
+              oldToNew[i] = verticesICompact.getSize() - 1;
+            }
+          }
+
+          Collection<Indices> simplexCollCompact;
+          for (const auto & simplex : simplexColl)
+          {
+            Indices simplexNew(simplex.getSize());
+            for (UnsignedInteger j = 0; j < simplex.getSize(); ++ j)
+              simplexNew[j] = oldToNew[simplex[j]];
+            simplexCollCompact.add(simplexNew);
+          }
+          result.add(Mesh(verticesICompact, IndicesCollection(simplexCollCompact)));
+        }
+      } // for nef.volumes
+      return result;
     }
     else if (intrinsicDimension == 3)
     {
-      // build from the volumetric mesh
+#ifdef OPENTURNS_HAVE_COACD
+      // tetra mesh -> extract external facets
+      // external facets are only referenced by one cell
+      // First pass: count using sorted keys (orientation-independent)
       const Point simplicesVolume(mesh.computeSimplicesVolume());
+      std::map<Indices, UnsignedInteger> facetMap;
       for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
       {
-        // cannot exclude small valume tetras as the nef can loose its 2-manifold property
-        // but still exclude flat ones (due to LevelSetMesher) as CGAL can crash when instantiating Nef_polyhedron
         if (simplicesVolume[i] <= 0.0)
           continue;
-
         const UnsignedInteger i0 = simplices(i, 0);
         const UnsignedInteger i1 = simplices(i, 1);
         const UnsignedInteger i2 = simplices(i, 2);
         const UnsignedInteger i3 = simplices(i, 3);
-
-        const Point_3 v0{vertices(i0, 0), vertices(i0, 1), vertices(i0, 2)};
-        const Point_3 v1{vertices(i1, 0), vertices(i1, 1), vertices(i1, 2)};
-        const Point_3 v2{vertices(i2, 0), vertices(i2, 1), vertices(i2, 2)};
-        const Point_3 v3{vertices(i3, 0), vertices(i3, 1), vertices(i3, 2)};
-
-        Polyhedron poly;
-        poly.make_tetrahedron(v0, v1, v2, v3);
-#if 0
-        if (!poly.is_valid(Log::HasDebug()))
-          throw InvalidArgumentException(HERE) << "Polyhedron must be valid";
-
-        if (!poly.is_closed())
-          throw InvalidArgumentException(HERE) << "Polyhedron must be closed";
-#endif
-        const Nef_polyhedron tetra(poly);
-        nef += tetra;
+        Indices f1 = {i0, i1, i2};
+        Indices f2 = {i0, i1, i3};
+        Indices f3 = {i0, i2, i3};
+        Indices f4 = {i1, i2, i3};
+        std::sort(f1.begin(), f1.end());
+        std::sort(f2.begin(), f2.end());
+        std::sort(f3.begin(), f3.end());
+        std::sort(f4.begin(), f4.end());
+        ++ facetMap[f1];
+        ++ facetMap[f2];
+        ++ facetMap[f3];
+        ++ facetMap[f4];
       }
-    }
-    else
-      throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
 
-    if (!nef.is_simple())
-      throw InvalidArgumentException(HERE) <<  "Nef polyhedron is not simple";
+      // Second pass: collect external triangles with outward-facing orientation
+      struct Tri { int v[3]; };
+      std::vector<Tri> triangles;
+      for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+      {
+        if (simplicesVolume[i] <= 0.0)
+          continue;
+        const UnsignedInteger i0 = simplices(i, 0);
+        const UnsignedInteger i1 = simplices(i, 1);
+        const UnsignedInteger i2 = simplices(i, 2);
+        const UnsignedInteger i3 = simplices(i, 3);
+        // Each face paired with its opposite vertex
+        Indices faceIndices[4] = {{i0, i1, i2}, {i0, i1, i3}, {i0, i2, i3}, {i1, i2, i3}};
+        UnsignedInteger opp[4] = {i3, i2, i1, i0};
+        for (UnsignedInteger f = 0; f < 4; ++ f)
+        {
+          auto & face = faceIndices[f];
+          Indices key = {face[0], face[1], face[2]};
+          std::sort(key.begin(), key.end());
+          if (facetMap[key] != 1) continue;
+
+          // Orient face so normal points away from the tetrahedron interior
+          // Compute face normal from current vertex order
+          Scalar x0 = vertices(face[0], 0), y0 = vertices(face[0], 1), z0 = vertices(face[0], 2);
+          Scalar x1 = vertices(face[1], 0), y1 = vertices(face[1], 1), z1 = vertices(face[1], 2);
+          Scalar x2 = vertices(face[2], 0), y2 = vertices(face[2], 1), z2 = vertices(face[2], 2);
+          Scalar nx = (y1 - y0) * (z2 - z0) - (z1 - z0) * (y2 - y0);
+          Scalar ny = (z1 - z0) * (x2 - x0) - (x1 - x0) * (z2 - z0);
+          Scalar nz = (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0);
+          // Vector from face center to opposite vertex
+          Scalar cx = (x0 + x1 + x2) / 3.0;
+          Scalar cy = (y0 + y1 + y2) / 3.0;
+          Scalar cz = (z0 + z1 + z2) / 3.0;
+          Scalar dx = vertices(opp[f], 0) - cx;
+          Scalar dy = vertices(opp[f], 1) - cy;
+          Scalar dz = vertices(opp[f], 2) - cz;
+          // If normal points toward opposite vertex, flip it
+          if (nx * dx + ny * dy + nz * dz > 0.0)
+            std::swap(face[1], face[2]);
+
+          Tri t;
+          t.v[0] = static_cast<int>(face[0]);
+          t.v[1] = static_cast<int>(face[1]);
+          t.v[2] = static_cast<int>(face[2]);
+          triangles.push_back(t);
+        }
+      }
+
+      if (triangles.empty())
+        throw InternalException(HERE) << "ConvexDecompositionMesher: no external facets found";
+
+      // group triangles into connected components (by shared edges)
+      std::map<std::pair<int, int>, std::vector<int>> edgeMap;
+      for (int i = 0; i < static_cast<int>(triangles.size()); ++ i)
+      {
+        const auto & t = triangles[i];
+        std::pair<int, int> edges[3] = {
+          {std::min(t.v[0], t.v[1]), std::max(t.v[0], t.v[1])},
+          {std::min(t.v[1], t.v[2]), std::max(t.v[1], t.v[2])},
+          {std::min(t.v[0], t.v[2]), std::max(t.v[0], t.v[2])}
+        };
+        for (auto & e : edges)
+          edgeMap[e].push_back(i);
+      }
+
+      std::vector<int> component(triangles.size(), -1);
+      int componentCount = 0;
+      for (int i = 0; i < static_cast<int>(triangles.size()); ++ i)
+      {
+        if (component[i] >= 0) continue;
+        std::queue<int> q;
+        q.push(i);
+        component[i] = componentCount;
+        while (!q.empty())
+        {
+          const int t = q.front(); q.pop();
+          const auto & tri = triangles[t];
+          std::pair<int, int> edges[3] = {
+            {std::min(tri.v[0], tri.v[1]), std::max(tri.v[0], tri.v[1])},
+            {std::min(tri.v[1], tri.v[2]), std::max(tri.v[1], tri.v[2])},
+            {std::min(tri.v[0], tri.v[2]), std::max(tri.v[0], tri.v[2])}
+          };
+          for (auto & e : edges)
+          {
+            for (int adj : edgeMap[e])
+              if (component[adj] < 0)
+              {
+                component[adj] = componentCount;
+                q.push(adj);
+              }
+          }
+        }
+        ++ componentCount;
+      }
+      LOGDEBUG(OSS() << "External facet connected components: " << componentCount);
+
+      // run coacd on each connected component separately
+      for (int cid = 0; cid < componentCount; ++ cid)
+      {
+        // collect vertices referenced by this component
+        std::set<int> vertSet;
+        std::vector<Tri> compTriangles;
+        for (int i = 0; i < static_cast<int>(triangles.size()); ++ i)
+        {
+          if (component[i] != cid) continue;
+          const auto & t = triangles[i];
+          vertSet.insert(t.v[0]);
+          vertSet.insert(t.v[1]);
+          vertSet.insert(t.v[2]);
+          compTriangles.push_back(t);
+        }
+
+        if (compTriangles.empty()) continue;
+
+        // build a local vertex index map
+        std::map<int, int> globalToLocal;
+        std::vector<int> localToGlobal;
+        for (int gv : vertSet)
+        {
+          globalToLocal[gv] = localToGlobal.size();
+          localToGlobal.push_back(gv);
+        }
+
+        coacd::Mesh input;
+        input.vertices.resize(localToGlobal.size());
+        for (std::size_t i = 0; i < localToGlobal.size(); ++ i)
+        {
+          input.vertices[i][0] = vertices(localToGlobal[i], 0);
+          input.vertices[i][1] = vertices(localToGlobal[i], 1);
+          input.vertices[i][2] = vertices(localToGlobal[i], 2);
+        }
+        for (auto & t : compTriangles)
+        {
+          input.indices.push_back({globalToLocal[t.v[0]], globalToLocal[t.v[1]], globalToLocal[t.v[2]]});
+        }
+
+        coacd::set_log_level(Log::HasDebug() ? "debug" : "off");
+        const Scalar threshold = ResourceMap::GetAsScalar("ConvexDecompositionMesher-Threshold");
+        std::vector<coacd::Mesh> output = coacd::CoACD(input, threshold);
+        LOGDEBUG(OSS() << "Component " << cid << " N CONVEX=" << output.size());
+
+        for (const auto & part : output)
+        {
+          // tetrahedralize convex piece via fan from centroid
+          const UnsignedInteger nv = part.vertices.size();
+          Scalar centroidX = 0.0, centroidY = 0.0, centroidZ = 0.0;
+          Sample verticesI(nv + 1, dimension);
+          for (UnsignedInteger i = 0; i < nv; ++ i)
+          {
+            verticesI(i, 0) = part.vertices[i][0];
+            verticesI(i, 1) = part.vertices[i][1];
+            verticesI(i, 2) = part.vertices[i][2];
+            centroidX += part.vertices[i][0];
+            centroidY += part.vertices[i][1];
+            centroidZ += part.vertices[i][2];
+          }
+          centroidX /= nv;
+          centroidY /= nv;
+          centroidZ /= nv;
+          verticesI(nv, 0) = centroidX;
+          verticesI(nv, 1) = centroidY;
+          verticesI(nv, 2) = centroidZ;
+          const UnsignedInteger apexIndex = nv;
+          Collection<Indices> simplexColl;
+          for (const auto & tri : part.indices)
+          {
+            Indices simplex(4);
+            simplex[0] = apexIndex;
+            simplex[1] = static_cast<UnsignedInteger>(tri[0]);
+            simplex[2] = static_cast<UnsignedInteger>(tri[1]);
+            simplex[3] = static_cast<UnsignedInteger>(tri[2]);
+            // Ensure positive signed volume
+            const Scalar x0 = verticesI(simplex[1], 0) - verticesI(simplex[0], 0);
+            const Scalar y0 = verticesI(simplex[1], 1) - verticesI(simplex[0], 1);
+            const Scalar z0 = verticesI(simplex[1], 2) - verticesI(simplex[0], 2);
+            const Scalar x1 = verticesI(simplex[2], 0) - verticesI(simplex[0], 0);
+            const Scalar y1 = verticesI(simplex[2], 1) - verticesI(simplex[0], 1);
+            const Scalar z1 = verticesI(simplex[2], 2) - verticesI(simplex[0], 2);
+            const Scalar x2 = verticesI(simplex[3], 0) - verticesI(simplex[0], 0);
+            const Scalar y2 = verticesI(simplex[3], 1) - verticesI(simplex[0], 1);
+            const Scalar z2 = verticesI(simplex[3], 2) - verticesI(simplex[0], 2);
+            if (x0 * (y1 * z2 - z1 * y2) - y0 * (x1 * z2 - z1 * x2) + z0 * (x1 * y2 - y1 * x2) < 0.0)
+              std::swap(simplex[2], simplex[3]);
+            simplexColl.add(simplex);
+          }
+          if (!simplexColl.isEmpty())
+            result.add(Mesh(verticesI, IndicesCollection(simplexColl)));
+        }
+      } // for components
+
+#else // !OPENTURNS_HAVE_COACD -> CGAL exact decomposition for volumetric meshes
+    // build from the volumetric mesh
+    using KernelExact = CGAL::Exact_predicates_exact_constructions_kernel;
+    using Polyhedron = CGAL::Polyhedron_3<KernelExact>;
+    using Nef_polyhedron = CGAL::Nef_polyhedron_3<KernelExact>;
+    using Point_3 = KernelExact::Point_3;
+
+    Nef_polyhedron nef;
+    const Point simplicesVolume(mesh.computeSimplicesVolume());
+    for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+    {
+      if (simplicesVolume[i] <= 0.0)
+        continue;
+
+      const UnsignedInteger i0 = simplices(i, 0);
+      const UnsignedInteger i1 = simplices(i, 1);
+      const UnsignedInteger i2 = simplices(i, 2);
+      const UnsignedInteger i3 = simplices(i, 3);
+
+      const Point_3 v0{vertices(i0, 0), vertices(i0, 1), vertices(i0, 2)};
+      const Point_3 v1{vertices(i1, 0), vertices(i1, 1), vertices(i1, 2)};
+      const Point_3 v2{vertices(i2, 0), vertices(i2, 1), vertices(i2, 2)};
+      const Point_3 v3{vertices(i3, 0), vertices(i3, 1), vertices(i3, 2)};
+
+      Polyhedron poly;
+      poly.make_tetrahedron(v0, v1, v2, v3);
+      const Nef_polyhedron tetra(poly);
+      nef += tetra;
+    }
 
     // Extract convex components
     CGAL::convex_decomposition_3(nef);
@@ -306,13 +603,12 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           continue;
 
         CGAL::Polygon_mesh_processing::triangulate_faces(part);
-        
-        Sample verticesI(part.size_of_vertices(), dimension); 
+
+        Sample verticesI(part.size_of_vertices(), dimension);
         std::unordered_map<typename Polyhedron::Vertex_const_handle, UnsignedInteger> vertexToIndexMap;
         UnsignedInteger vertexIndex = 0;
         for (auto vi = part.vertices_begin(); vi != part.vertices_end(); ++ vi)
         {
-          // typename Polyhedron::Vertex_const_handle vch = vi;
           const Point_3 & p = vi->point();
           for (UnsignedInteger j = 0; j < dimension; ++ j)
             verticesI(vertexIndex, j) = CGAL::to_double(p[j]);
@@ -328,7 +624,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
         for (auto f = part.facets_begin(); f != part.facets_end(); ++f)
         {
           auto h = f->facet_begin();
-          
+
           // filter out the facets incident to the apex vertex
           Bool ok = true;
           for (UnsignedInteger j = 0; j < dimension; ++ j)
@@ -384,9 +680,13 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           simplexCollCompact.add(simplexNew);
         }
         result.add(Mesh(verticesICompact, IndicesCollection(simplexCollCompact)));
-      }
-    } // for nef.volumes
-  } // 3d
+      } // if mark
+    } // for nef
+#endif // OPENTURNS_HAVE_COACD
+    } // intrinsic dim=3
+    else
+      throw InvalidArgumentException(HERE) << "ConvexDecompositionMesher expected intrinsic dimension=2|3 got " << intrinsicDimension;
+  } // dim = 3
   else if (dimension == intrinsicDimension)
   {
     const Point simplicesVolume(mesh.computeSimplicesVolume());

@@ -47,10 +47,7 @@ algoInter = otm.IntersectionMesher()
 
 # %%
 # Algorithm used for all the convex decomposition computation
-# We force the use of simplices decomposition to avoid a bug in the 3D convex
-# decomposition (which is correct but awfully slow)
 algoDecomp = otm.ConvexDecompositionMesher()
-algoDecomp.setUseSimplicesDecomposition(True)
 
 # %%
 # Define the first constraint :math:`C_1` as the interior of the convex hull of a set of points in 2D
@@ -133,8 +130,6 @@ view = otv.View(g3)
 # Now the admissible domain
 meshAllCylinders = algoInter.buildCylinder([C_1, C_2, C_3])
 ot.BoundaryMesher().build(meshAllCylinders).exportToVTKFile("cylindersIntersection.vtk")
-meshAllCylindersConvexParts = algoDecomp.build(meshAllCylinders)
-print("Number of convex parts=", len(meshAllCylindersConvexParts))
 
 # %%
 # Create a uniform distribution over mesh and sample it
@@ -170,15 +165,18 @@ mesher = otm.FunctionGraphMesher(inputInterval, inputDiscretization)
 mesh = mesher.build(f, outputDimension, a[2], b[2], 1)
 ot.BoundaryMesher().build(mesh).exportToVTKFile("func_graph.vtk")
 
+t0 = time()
 meshConvexParts = algoDecomp.build(mesh)
+t1 = time()
 print("Number of convex parts=", len(meshConvexParts))
+print(f"t={t1 - t0} s")
 
 # %%
 t0 = time()
 globalMesh = algoInter.build([mesh, meshAllCylinders])
 t1 = time()
 ot.BoundaryMesher().build(globalMesh).exportToVTKFile("global.vtk")
-print("t=", t1 - t0, "s")
+print(f"t={t1 - t0} s")
 
 # %%
 # Create a uniform distribution over mesh and sample it

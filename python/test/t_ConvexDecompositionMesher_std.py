@@ -118,42 +118,26 @@ for i, convex in enumerate(decomposition):
     print(i, repr(convex), convex.getVolume())
     volume_sum += convex.getVolume()
     assert otmeshing.ConvexDecompositionMesher.IsConvex(convex)
-ott.assert_almost_equal(volume_sum, 7.0)
+assert len(decomposition) == 3
+ott.assert_almost_equal(volume_sum, 7.0, 1e-6)
 
-# 3d volumetric mesh (two overlapping cubes)
-vertices = (
-    ot.IntervalMesher([1, 1, 1]).build(ot.Interval([0.0] * 3, [2.0] * 3)).getVertices()
-)
-vertices.add(
-    ot.IntervalMesher([1, 1, 1]).build(ot.Interval([1.0] * 3, [3.0] * 3)).getVertices()
-)
-simplices = [
-    [0, 1, 5, 7],
-    [0, 3, 1, 7],
-    [0, 5, 4, 7],
-    [0, 4, 6, 7],
-    [0, 6, 2, 7],
-    [0, 2, 3, 7],
-    [8, 9, 13, 15],
-    [8, 11, 9, 15],
-    [8, 13, 12, 15],
-    [8, 12, 14, 15],
-    [8, 14, 10, 15],
-    [8, 10, 11, 15],
-]
-mesh_3d_overlap = ot.Mesh(vertices, simplices)
-print(mesh_3d_overlap)
-print(mesh_3d_overlap.getVolume())
-assert mesh_3d_overlap.isValid()
+# 3d volumetric mesh (two adjacent cubes)
+cube1 = ot.IntervalMesher([1, 1, 1]).build(ot.Interval([0.0] * 3, [2.0] * 3))
+cube2 = ot.IntervalMesher([1, 1, 1]).build(ot.Interval([2.0] * 3, [4.0] * 3))
+mesh_3d_vol = otmeshing.UnionMesher().build([cube1, cube2])
+print(mesh_3d_vol)
+print(mesh_3d_vol.getVolume())
+assert mesh_3d_vol.isValid()
 
 # build decomposition
-decomposition = mesher.build(mesh_3d_overlap)
+decomposition = mesher.build(mesh_3d_vol)
+assert len(decomposition) == 2
 volume_sum = 0.0
 for i, convex in enumerate(decomposition):
     print(i, repr(convex), convex.getVolume())
     volume_sum += convex.getVolume()
     assert otmeshing.ConvexDecompositionMesher.IsConvex(convex)
-ott.assert_almost_equal(volume_sum, 15.0)
+ott.assert_almost_equal(volume_sum, 16.0)
 
 # 3d disconnected cubes
 mesh1 = ot.IntervalMesher([1] * 3).build(ot.Interval([-2.0] * 3, [-1.0] * 3))
@@ -230,12 +214,12 @@ assert len(decomposition) == 1, "3D convex mesh should decompose to 1 component"
 assert otmeshing.ConvexDecompositionMesher.IsConvex(decomposition[0])
 
 # 3D volumetric mesh with useSimplicesDecomposition=True
-decomposition = mesher_simple.build(mesh_3d_overlap)
+decomposition = mesher_simple.build(mesh_3d_vol)
 volume_sum = 0.0
 for i, convex in enumerate(decomposition):
     volume_sum += convex.getVolume()
     assert otmeshing.ConvexDecompositionMesher.IsConvex(convex)
-ott.assert_almost_equal(volume_sum, mesh_3d_overlap.getVolume())
+ott.assert_almost_equal(volume_sum, mesh_3d_vol.getVolume())
 
 # 4D with useSimplicesDecomposition=True
 decomposition = mesher_simple.build(mesh_4d)

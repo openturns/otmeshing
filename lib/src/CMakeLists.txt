@@ -64,6 +64,11 @@ if (TBB_FOUND)
   target_link_libraries (otmeshing PRIVATE ${TBB_LIBRARIES})
 endif ()
 
+if (CoACD_FOUND)
+  target_compile_definitions (otmeshing PRIVATE OPENTURNS_HAVE_COACD)
+  target_link_libraries (otmeshing PRIVATE CoACD::_coacd)
+endif ()
+
 # Add targets to the build-tree export set
 export (TARGETS otmeshing FILE ${PROJECT_BINARY_DIR}/otmeshing-Targets.cmake)
 
