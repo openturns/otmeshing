@@ -1,6 +1,6 @@
 # - Find cddlib
 # A general dimension code for computing convex hulls and related structures
-# http://www.qhull.org/
+# https://github.com/cddlib/cddlib.git
 #
 # The module defines the following variables:
 #  CDDLIB_INCLUDE_DIRS, where to find libqhull_r/qhull_ra.h, etc.
@@ -49,7 +49,7 @@ if (cddlib_FIND_VERSION AND cddlib_VERSION)
   endif ()
 endif ()
 
-find_library (CDDLIB_LIBRARY NAMES cdd)
+find_library (CDDLIB_LIBRARY NAMES cddgmp cdd)
 
 set (CDDLIB_LIBRARIES ${CDDLIB_LIBRARY})
 set (CDDLIB_INCLUDE_DIRS ${CDDLIB_INCLUDE_DIR})
