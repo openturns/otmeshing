@@ -52,6 +52,7 @@ if (cddlib_FOUND)
   target_compile_definitions (otmeshing PRIVATE OPENTURNS_HAVE_CDDLIB)
   target_include_directories(otmeshing PRIVATE ${CDDLIB_INCLUDE_DIRS})
   target_link_libraries(otmeshing PRIVATE ${CDDLIB_LIBRARIES})
+  target_compile_definitions(otmeshing PRIVATE GMPRATIONAL)
 endif ()
 
 if (TBB_FOUND)
