@@ -3,11 +3,13 @@
 # https://github.com/cddlib/cddlib.git
 #
 # The module defines the following variables:
-#  CDDLIB_INCLUDE_DIRS, where to find libqhull_r/qhull_ra.h, etc.
+#  CDDLIB_INCLUDE_DIRS, where to find cdd.h, etc.
 #  CDDLIB_LIBRARIES, the libraries needed to use cddlib.
 #  CDDLIB_FOUND, If false, do not try to use cddlib.
 # also defined, but not for general use are
 #  CDDLIB_LIBRARY, where to find the cddlib library.
+#  CDDLIB_GMP_LIBRARY, where to find the cddlib gmp variant library.
+#  CDDLIB_GMP_LIBRARIES, the libraries needed to use cddlib gmp variant.
 #
 #=============================================================================
 # Copyright 2005-2026 Airbus-EDF-IMACS-ONERA-Phimeca
@@ -49,9 +51,11 @@ if (cddlib_FIND_VERSION AND cddlib_VERSION)
   endif ()
 endif ()
 
-find_library (CDDLIB_LIBRARY NAMES cddgmp cdd)
+find_library (CDDLIB_LIBRARY NAMES cdd)
+find_library (CDDLIB_GMP_LIBRARY NAMES cddgmp)
 
 set (CDDLIB_LIBRARIES ${CDDLIB_LIBRARY})
+set (CDDLIB_GMP_LIBRARIES ${CDDLIB_GMP_LIBRARY})
 set (CDDLIB_INCLUDE_DIRS ${CDDLIB_INCLUDE_DIR})
 
 include(FindPackageHandleStandardArgs)
@@ -61,7 +65,9 @@ find_package_handle_standard_args(cddlib
 
 mark_as_advanced (
   CDDLIB_LIBRARY
+  CDDLIB_GMP_LIBRARY
   CDDLIB_LIBRARIES
+  CDDLIB_GMP_LIBRARIES
   CDDLIB_INCLUDE_DIR
   CDDLIB_INCLUDE_DIRS
   cddlib_VERSION)
