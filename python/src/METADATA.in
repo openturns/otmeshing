@@ -1,7 +1,7 @@
 Metadata-Version: 1.2
 Name: @PACKAGE_NAME@
 Version: @PACKAGE_VERSION@
-Summary: Template module
+Summary: Meshing module
 Home-page: http://www.openturns.org
 Author: OpenTURNS Developers
 Author-email: users@openturns.org
@@ -15,5 +15,5 @@ Classifier: Topic :: Scientific/Engineering :: Mathematics
 Classifier: Intended Audience :: Science/Research
 Requires-Dist: openturns (>=1.20)
 
-Template module for OpenTURNS
-It provides useful features
+Meshing module for OpenTURNS
+It provides mesh intersection, convex decomposition etc
