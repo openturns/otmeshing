@@ -72,14 +72,16 @@ Mesh buildTriangulation(const Sample & points)
   // it is much faster to insert vertices by batch
   triangulation.insert(pts.begin(), pts.end());
 
-  // the vertices are reordered by the triangulation
-  std::unordered_map<typename TriangulationType::Vertex_iterator, UnsignedInteger> vertexToIndexMap;
+  // the vertices are reordered by the triangulation. Keyed by Vertex_handle.
+  std::unordered_map<typename TriangulationType::Vertex_handle, UnsignedInteger> vertexToIndexMap;
   UnsignedInteger vertexIndex = 0;
   Sample vertices(0, dimension);
 
   // the infinite first vertex can be skipped
-  for (typename TriangulationType::Vertex_iterator vi = ++ triangulation.vertices_begin(); vi != triangulation.vertices_end(); ++ vi)
+  for (typename TriangulationType::Vertex_iterator vi = triangulation.vertices_begin(); vi != triangulation.vertices_end(); ++ vi)
   {
+    // Skip the infinite vertex
+    if (triangulation.is_infinite(vi)) continue;
     vertices.add(Point(vi->point().cartesian_begin(), vi->point().cartesian_end()));
     vertexToIndexMap[vi] = vertexIndex;
     ++ vertexIndex;
@@ -117,6 +119,7 @@ Mesh CloudMesher::build(const Sample & points) const
     vertices.add(points.getMin());
     vertices.add(points.getMax());
     IndicesCollection simplices(1, dimension + 1);
+    simplices(0, 0) = 0;
     simplices(0, 1) = 1;
     Mesh result(vertices, simplices);
     result.setIsConvex(true);
