@@ -15,8 +15,12 @@ print(mesher.getRecompress())
 for compression in [False, True]:
     mesher.setRecompress(compression)
     for dim in range(2, 6):
-        mesh1 = ot.IntervalMesher([1] * dim).build(ot.Interval([0.0] * dim, [3.0] * dim))
-        mesh2 = ot.IntervalMesher([1] * dim).build(ot.Interval([1.0] * dim, [4.0] * dim))
+        mesh1 = ot.IntervalMesher([1] * dim).build(
+            ot.Interval([0.0] * dim, [3.0] * dim)
+        )
+        mesh2 = ot.IntervalMesher([1] * dim).build(
+            ot.Interval([1.0] * dim, [4.0] * dim)
+        )
         intersection = mesher.build([mesh1, mesh2])
         volume = intersection.getVolume()
         print(f"{dim=} {compression=} intersection={intersection} {volume=:.3g}")
@@ -93,7 +97,9 @@ volume_ref = 16.0 / 3.0 * R**3
 
 # compute intersection with buildConvexSample
 assert cyl1.isConvex() and cyl2.isConvex()
-interSample = otmeshing.IntersectionMesher().buildConvexSample([cyl1.getVertices(), cyl2.getVertices()])
+interSample = otmeshing.IntersectionMesher().buildConvexSample(
+    [cyl1.getVertices(), cyl2.getVertices()]
+)
 inter12 = otmeshing.CloudMesher().build(interSample)
 volume = inter12.getVolume()
 print("inter(sample) volume=", volume)
