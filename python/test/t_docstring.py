@@ -22,17 +22,16 @@ for py_file in py_files:
     py_basename = os.path.splitext(os.path.basename(py_file))[0]
     module = __import__("otmeshing." + py_basename, fromlist=[py_basename])
     failure_count, test_count = doctest.testmod(
-        module, verbose=False, optionflags=doctest.ELLIPSIS)
+        module, verbose=False, optionflags=doctest.ELLIPSIS
+    )
 
     total_failure_count += failure_count
     total_test_count += test_count
 
-    print(("%s %5d tests failed"
-           % ((py_basename + " ").ljust(60, "."), failure_count)))
+    print(("%s %5d tests failed" % ((py_basename + " ").ljust(60, "."), failure_count)))
 
 print(("-" * 79))
-print(("%s %5d tests failed"
-       % ("TOTAL ".ljust(60, "."), total_failure_count)))
+print(("%s %5d tests failed" % ("TOTAL ".ljust(60, "."), total_failure_count)))
 
 # Delete temporary working directory for IO tests
 os.chdir("..")
