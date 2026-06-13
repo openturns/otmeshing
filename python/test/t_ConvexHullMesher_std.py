@@ -8,7 +8,15 @@ ot.TESTPREAMBLE()
 # basic 2d convex hull
 mesher = otmeshing.ConvexHullMesher()
 print("mesher=", mesher)
-vertices = [[0.0, 0.0], [0.0, 3.0], [1.0, 2.0], [0.5, 0.5], [1.0, 0.5], [2.0, 2.0], [2.0, 0.0]]
+vertices = [
+    [0.0, 0.0],
+    [0.0, 3.0],
+    [1.0, 2.0],
+    [0.5, 0.5],
+    [1.0, 0.5],
+    [2.0, 2.0],
+    [2.0, 0.0],
+]
 hull = mesher.build(vertices)
 print(f"-- 2d hull={repr(hull)}")
 assert hull.getDimension() == 2
