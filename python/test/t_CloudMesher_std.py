@@ -10,16 +10,7 @@ ot.TESTPREAMBLE()
 # basic 2d triangulation
 mesher = otmeshing.CloudMesher()
 print("mesher=", mesher)
-vertices = [
-    [3.0, 0.0],
-    [2.0, 0.0],
-    [
-        2.0,
-        0.75,
-    ],
-    [2.5, 0.75],
-    [3.0, 0.2],
-]
+vertices = [[3.0, 0.0], [2.0, 0.0], [2.0, 0.75,], [2.5, 0.75], [3.0, 0.2]]
 triangulation = mesher.build(vertices)
 vol = triangulation.getVolume()
 print(f"-- 2d triangulation={repr(triangulation)} vol={vol}")
@@ -60,6 +51,6 @@ for dim in range(1, 5):
     if dim > 1:
         assert len(triangulation.getVertices()) == len(vertices)
     assert triangulation.isValid()
-    vol_ref = math.pi ** (dim / 2) / math.gamma(dim / 2 + 1)
+    vol_ref = math.pi**(dim / 2) / math.gamma(dim / 2 + 1)
     ott.assert_almost_equal(vol, vol_ref, 0.1, 0.0)
     assert triangulation.isConvex()

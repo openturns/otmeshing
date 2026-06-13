@@ -25,22 +25,8 @@ assert len(triangulation.getSimplices()) == n - 2
 assert triangulation.isValid()
 
 # 2d triangulation of a non-convex polygon (snail-like)
-polyline = [
-    [0, 0],
-    [0, 5],
-    [6, 5],
-    [6, 0],
-    [2, 0],
-    [2, 3],
-    [4, 3],
-    [4, 2],
-    [3, 2],
-    [3, 1],
-    [5, 1],
-    [5, 4],
-    [1, 4],
-    [1, 0],
-]
+polyline = [[0, 0], [0, 5], [6, 5], [6, 0], [2, 0], [2, 3], [4, 3],
+            [4, 2], [3, 2], [3, 1], [5, 1], [5, 4], [1, 4], [1, 0]]
 triangulation = mesher.build(polyline)
 print("triangulation=", repr(triangulation))
 assert triangulation.getDimension() == 2
