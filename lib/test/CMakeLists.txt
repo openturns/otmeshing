@@ -29,6 +29,7 @@ macro (ot_check_test TESTNAME)
 endmacro ()
 
 
+ot_check_test (FunctionGraphMesher_std IGNOREOUT)
 #ot_check_test (CloudMesher_std IGNOREOUT)
 
 
