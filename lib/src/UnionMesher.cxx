@@ -69,33 +69,102 @@ Mesh UnionMesher::CompressMesh(const Mesh & mesh)
   if (!fullSize)
     return mesh;
   IndicesCollection simplices(mesh.getSimplices());
-  Indices compressedVertexMap(fullSize, fullSize);
-  const KDTree tree(vertices);
-  const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
+
+  // mark vertices referenced by a simplex
   Indices usedVertex(fullSize, 0);
   for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
     for (UnsignedInteger j = 0; j <= dimension; ++ j)
       usedVertex[simplices(i, j)] = 1;
-  Sample verticesCompressed(0, dimension);
+
+  // Phase 1: union-find to build connected components of vertices within tolerance.
+  // This ensures transitive closure: if A is close to B and B is close to C,
+  // all three end up in the same component even if A and C are not directly close.
+  Indices parent(fullSize);
+  parent.fill();
+
+  // iterative find with full path compression
+  auto find = [&](UnsignedInteger x) -> UnsignedInteger
+  {
+    UnsignedInteger root = x;
+    while (root != parent[root])
+      root = parent[root];
+    while (x != root)
+    {
+      const UnsignedInteger next = parent[x];
+      parent[x] = root;
+      x = next;
+    }
+    return root;
+  };
+
+  const KDTree tree(vertices);
+  const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
   for (UnsignedInteger i = 0; i < fullSize; ++ i)
   {
-    // check if unused or already marked
-    if (!usedVertex[i] || (compressedVertexMap[i] < fullSize))
+    if (!usedVertex[i])
       continue;
-
-    // retrieve the indices of unique points, beware the last few decimals can actually differ
     Point distance;
     const Indices nearest(tree.queryRadius(vertices[i], tolerance, distance));
-
-    // mark the whole set of unique points (contains i index)
-    const UnsignedInteger currentSize = verticesCompressed.getSize();
     for (UnsignedInteger k = 0; k < nearest.getSize(); ++ k)
-      compressedVertexMap[nearest[k]] = currentSize;
-
-    // store the point
-    verticesCompressed.add(vertices[i]);
+    {
+      const UnsignedInteger j = nearest[k];
+      if (!usedVertex[j] || j == i)
+        continue;
+      // Recompute rootI on each iteration so transitive chains merge correctly
+      const UnsignedInteger rootI = find(i);
+      const UnsignedInteger rootJ = find(j);
+      if (rootI != rootJ)
+        parent[rootI] = rootJ;
+    }
   }
-  LOGDEBUG(OSS() << "recompression fullSize=" << fullSize << " compressedSize=" << verticesCompressed.getSize());
+
+  // Phase 2: identify unique roots and assign compressed indices
+  Indices compressedVertexMap(fullSize, fullSize);
+  UnsignedInteger nRoots = 0;
+  for (UnsignedInteger i = 0; i < fullSize; ++ i)
+  {
+    if (!usedVertex[i])
+      continue;
+    const UnsignedInteger r = find(i);
+    if (compressedVertexMap[r] >= fullSize)
+    {
+      compressedVertexMap[r] = nRoots;
+      ++ nRoots;
+    }
+  }
+
+  // Phase 3: accumulate component sums into the final sample
+  Sample verticesCompressed(nRoots, dimension);
+  Indices sizes(nRoots, 0);
+  for (UnsignedInteger i = 0; i < fullSize; ++ i)
+  {
+    if (!usedVertex[i])
+      continue;
+    const UnsignedInteger r = find(i);
+    const UnsignedInteger idx = compressedVertexMap[r];
+    for (UnsignedInteger d = 0; d < dimension; ++ d)
+      verticesCompressed[idx][d] += vertices[i][d];
+    sizes[idx] += 1;
+  }
+
+  // Phase 4: compute centroid of each component
+  for (UnsignedInteger i = 0; i < nRoots; ++ i)
+  {
+    const Scalar invSize = 1.0 / sizes[i];
+    for (UnsignedInteger d = 0; d < dimension; ++ d)
+      verticesCompressed[i][d] *= invSize;
+  }
+
+  // Phase 5: build full mapping from original index to compressed index
+  for (UnsignedInteger i = 0; i < fullSize; ++ i)
+  {
+    if (!usedVertex[i])
+      continue;
+    const UnsignedInteger r = find(i);
+    compressedVertexMap[i] = compressedVertexMap[r];
+  }
+
+  LOGDEBUG(OSS() << "recompression fullSize=" << fullSize << " compressedSize=" << nRoots);
 
   // renumber vertex indices
   for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
@@ -110,7 +179,7 @@ Mesh UnionMesher::build(const MeshCollection & coll) const
   if (size == 0)
     return Mesh(Sample(0, 0));
   else if (size == 1)
-    return coll[0];
+    return CompressMesh(coll[0]);
 
   const UnsignedInteger dimension = coll[0].getDimension();
   for (UnsignedInteger i = 1; i < size; ++ i)
@@ -137,7 +206,7 @@ Mesh UnionMesher::build(const MeshCollection & coll) const
     simplicesOffset += sizeI;
     vertexOffset += coll[i].getVerticesNumber();
   }
-  return Mesh(vertices, simplices);
+  return CompressMesh(Mesh(vertices, simplices, false));
 }
 
 /* Method save() stores the object through the StorageManager */
