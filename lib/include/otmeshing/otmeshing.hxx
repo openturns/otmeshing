@@ -23,6 +23,7 @@
 #define OTMESHING_OTMESHING_HXX
 
 #include "otmeshing/CloudMesher.hxx"
+#include "otmeshing/Cylinder.hxx"
 #include "otmeshing/FunctionGraphMesher.hxx"
 #include "otmeshing/UnionMesher.hxx"
 

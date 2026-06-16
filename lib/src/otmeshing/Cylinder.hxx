@@ -60,7 +60,7 @@ public:
   /** Extension accessor */
   OT::Interval getExtension() const;
   
-  /** Injectio accessor */
+  /** Injection accessor */
   OT::Indices getInjection() const;
   
   /** Discretization accessor */
@@ -81,7 +81,7 @@ public:
   /** Dimension accessor */
   OT::UnsignedInteger getDimension() const;
 
-  /** Dimension accessor */
+  /** Mesh conversion */
   OT::Mesh computeMesh() const;
 
   /** Method save() stores the object through the StorageManager */
@@ -98,7 +98,7 @@ protected:
   OT::Mesh base_;
   OT::Interval extension_;
   OT::Indices injection_;
-  OT::UnsignedInteger discretization_;
+  OT::UnsignedInteger discretization_ = 0;
 
   OT::UnsignedInteger baseDimension_ = 0;
   OT::UnsignedInteger extensionDimension_ = 0;
