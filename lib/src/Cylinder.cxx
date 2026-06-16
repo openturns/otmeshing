@@ -60,6 +60,8 @@ void Cylinder::initialize()
   baseDimension_ = base_.getDimension();
   extensionDimension_ = extension_.getDimension();
   dimension_ = baseDimension_ + extensionDimension_;
+  if (!injection_.check(dimension_))
+    throw InvalidArgumentException(HERE) << "The injection indices size must be all different and strictly less than dimension=" << dimension_;
   complement_ = injection_.complement(dimension_);
   if (injection_.getSize() != extension_.getDimension())
     throw InvalidArgumentException(HERE) << "The injection indices size must be equal to the extension dimension.";
@@ -121,8 +123,9 @@ Sample Cylinder::getVertices() const
 /* BBox accessor */
 Interval Cylinder::getBoundingBox() const
 {
-  return Interval(combine(base_.getVertices().getMin(), extension_.getLowerBound()),
-                  combine(base_.getVertices().getMax(), extension_.getUpperBound()));
+  const Sample vertices(base_.getVertices());
+  return Interval(combine(vertices.getMin(), extension_.getLowerBound()),
+                  combine(vertices.getMax(), extension_.getUpperBound()));
 }
 
 /* Volume accessor */
@@ -150,7 +153,7 @@ Interval Cylinder::getExtension() const
   return extension_;
 }
 
-/* Injectio accessor */
+/* Injection accessor */
 Indices Cylinder::getInjection() const
 {
   return injection_;
