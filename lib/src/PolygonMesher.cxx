@@ -91,11 +91,11 @@ Mesh PolygonMesher::build(const Sample & points) const
     if (stddev[j] > 0.0)
       intrinsic.add(j);
   if (intrinsic.getSize() != 2)
-    throw InvalidArgumentException(HERE) << "PolygonMesher expected an intrinsic dimension of 2, got " << size;
+    throw InvalidArgumentException(HERE) << "PolygonMesher expected an intrinsic dimension of 2, got " << intrinsic.getSize();
 
   // the indices are not stored so we need to query a map
   std::vector<Point_2> points2;
-  std::unordered_map<Point_2, UnsignedInteger> vertexToIndexMap;
+  std::unordered_map<Point_2, UnsignedInteger, Point2Hash> vertexToIndexMap;
   for (UnsignedInteger i = 0; i < size; ++ i)
   {
     const Point_2 p2(points(i, intrinsic[0]), points(i, intrinsic[1]));
