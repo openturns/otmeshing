@@ -30,7 +30,7 @@ endmacro ()
 
 
 ot_check_test (FunctionGraphMesher_std IGNOREOUT)
-#ot_check_test (CloudMesher_std IGNOREOUT)
+ot_check_test (CloudMesher_std IGNOREOUT)
 ot_check_test (UnionMesher_std IGNOREOUT)
 ot_check_test (Cylinder_std IGNOREOUT)
 
