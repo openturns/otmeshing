@@ -33,6 +33,7 @@ ot_check_test (FunctionGraphMesher_std IGNOREOUT)
 ot_check_test (CloudMesher_std IGNOREOUT)
 ot_check_test (UnionMesher_std IGNOREOUT)
 ot_check_test (Cylinder_std IGNOREOUT)
+ot_check_test (ConvexDecompositionMesher_std IGNOREOUT)
 
 
 add_custom_target ( cppcheck COMMAND ${CMAKE_CTEST_COMMAND} -R "^cppcheck_"

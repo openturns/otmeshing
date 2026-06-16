@@ -25,6 +25,10 @@
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
 
+#include <iterator>
+#include <map>
+#include <unordered_map>
+
 // 3d
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Polyhedron_3.h>
@@ -38,6 +42,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Polygon_mesh_processing/connected_components.h>
 #include <CGAL/convex_hull_2.h>
+#include <CGAL/Polygon_2.h>
 
 using namespace OT;
 
@@ -147,40 +152,47 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           {
             if (used[jdx]) continue;
 
-            // check if triangles share and edge
-            Indices sharedVertexJIndex;
-            for (UnsignedInteger i1 = 0; i1 < 3; ++ i1)
-              for (UnsignedInteger i2 = 0; i2 < 3; ++ i2)
-                if (simplices(idx, i1) == simplices(jdx, i2))
-                  sharedVertexJIndex.add(i2);
-            const Bool shareEdge = sharedVertexJIndex.getSize() == 2;
-            if (!shareEdge) continue;
+            // check if triangle shares an edge with the current polygon
+            // by checking if two of its vertices correspond to consecutive polygon vertices
+            const Point_2 q0{vertices2[simplices(jdx, 0)]};
+            const Point_2 q1{vertices2[simplices(jdx, 1)]};
+            const Point_2 q2{vertices2[simplices(jdx, 2)]};
 
-            // merge triangle jdx by inserting the vertex that is not shared in the shared edge
-            const UnsignedInteger newVertexIndex = simplices(jdx, sharedVertexJIndex.complement(3)[0]);
-            const Indices commonVertexIndex = {simplices(jdx, sharedVertexJIndex[0]), simplices(jdx, sharedVertexJIndex[1])};
-            const Point_2 p0{vertices2[commonVertexIndex[0]]};
-            const Point_2 p1{vertices2[commonVertexIndex[1]]};
-            const Point_2 newPoint{vertices2[newVertexIndex]};
-            Polygon_2 merged{poly};
-            for (auto vi = merged.vertices_begin(); vi != merged.vertices_end(); ++ vi)
+            for (auto vi = poly.vertices_begin(); vi != poly.vertices_end(); ++ vi)
             {
-              // wrap around
               auto next = std::next(vi);
-              if (next == merged.vertices_end())
-                next = merged.vertices_begin();
+              if (next == poly.vertices_end())
+                next = poly.vertices_begin();
 
-              if ((*vi == p0 && *next == p1) || (*vi == p1 && *next == p0))
+              Point_2 newPoint;
+              Bool match = false;
+              if ((*vi == q0 && *next == q1) || (*vi == q1 && *next == q0)) { newPoint = q2; match = true; }
+              else if ((*vi == q1 && *next == q2) || (*vi == q2 && *next == q1)) { newPoint = q0; match = true; }
+              else if ((*vi == q2 && *next == q0) || (*vi == q0 && *next == q2)) { newPoint = q1; match = true; }
+
+              if (match)
               {
-                merged.insert(next, newPoint);
+                Polygon_2 merged{poly};
+                // find the same edge in the copy and insert the new vertex
+                for (auto mvi = merged.vertices_begin(); mvi != merged.vertices_end(); ++ mvi)
+                {
+                  auto mnext = std::next(mvi);
+                  if (mnext == merged.vertices_end())
+                    mnext = merged.vertices_begin();
+                  if ((*mvi == *vi && *mnext == *next) || (*mvi == *next && *mnext == *vi))
+                  {
+                    merged.insert(mnext, newPoint);
+                    break;
+                  }
+                }
+                if (merged.is_convex())
+                {
+                  poly = merged;
+                  used[jdx] = 1;
+                  mergedAny = true;
+                }
                 break;
               }
-            }
-            if (merged.is_convex())
-            {
-              poly = merged;
-              used[jdx] = 1;
-              mergedAny = true;
             }
           }
         } while (mergedAny);
@@ -319,7 +331,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
           
           // filter out the facets incident to the apex vertex
           Bool ok = true;
-          for (UnsignedInteger j = 0; j < dimension + 1; ++ j)
+          for (UnsignedInteger j = 0; j < dimension; ++ j)
           {
             if (vertexToIndexMap[h->vertex()] == apexIndex)
             {
@@ -342,7 +354,36 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
             simplexColl.add(simplex);
           }
         }
-        result.add(Mesh(verticesI, IndicesCollection(simplexColl)));
+
+        // remove unused vertices (some may only appear in facets incident to the apex)
+        Indices usedVertices(verticesI.getSize());
+        for (const auto & simplex : simplexColl)
+          for (const UnsignedInteger vi : simplex)
+            usedVertices[vi] = 1;
+
+        Indices oldToNew(verticesI.getSize());
+        Sample verticesICompact(0, dimension);
+        for (UnsignedInteger i = 0; i < verticesI.getSize(); ++ i)
+        {
+          if (usedVertices[i])
+          {
+            Point p(dimension);
+            for (UnsignedInteger j = 0; j < dimension; ++ j)
+              p[j] = verticesI(i, j);
+            verticesICompact.add(p);
+            oldToNew[i] = verticesICompact.getSize() - 1;
+          }
+        }
+
+        Collection<Indices> simplexCollCompact;
+        for (const auto & simplex : simplexColl)
+        {
+          Indices simplexNew(simplex.getSize());
+          for (UnsignedInteger j = 0; j < simplex.getSize(); ++ j)
+            simplexNew[j] = oldToNew[simplex[j]];
+          simplexCollCompact.add(simplexNew);
+        }
+        result.add(Mesh(verticesICompact, IndicesCollection(simplexCollCompact)));
       }
     } // for nef.volumes
   } // 3d
