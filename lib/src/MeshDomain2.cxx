@@ -32,14 +32,11 @@
 #include <CGAL/AABB_triangle_primitive.h>
 #endif
 #include <CGAL/AABB_tree.h>
-#include <CGAL/Polygon_2.h>
-#include <CGAL/point_generators_2.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/AABB_face_graph_triangle_primitive.h>
 #include <CGAL/Side_of_triangle_mesh.h>
 #include <CGAL/QP_models.h>
 #include <CGAL/QP_functions.h>
-#include <CGAL/Gmpzf.h>
 
 using namespace OT;
 
@@ -97,12 +94,12 @@ Sample MeshDomain2::computeDistance(const Sample & points) const
     using Segment2 = KernelInexact::Segment_2;
     using Segment3 = KernelInexact::Segment_3;
     using Ray2 = KernelInexact::Ray_2;
-    using TriangleIterator = std::vector<Segment3>::iterator;
+    using SegmentIterator = std::vector<Segment3>::iterator;
 #if CGAL_VERSION_NR >= 1060000000
-    using Primitive = CGAL::AABB_triangle_primitive_3<KernelInexact, TriangleIterator>;
+    using Primitive = CGAL::AABB_triangle_primitive_3<KernelInexact, SegmentIterator>;
     using AABB_Traits = CGAL::AABB_traits_3<KernelInexact, Primitive>;
 #else
-    using Primitive = CGAL::AABB_triangle_primitive<KernelInexact, TriangleIterator>;
+    using Primitive = CGAL::AABB_triangle_primitive<KernelInexact, SegmentIterator>;
     using AABB_Traits = CGAL::AABB_traits<KernelInexact, Primitive>;
 #endif
     using Tree = CGAL::AABB_tree<AABB_Traits>;
