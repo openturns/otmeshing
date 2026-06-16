@@ -24,6 +24,7 @@
 
 #include "otmeshing/CloudMesher.hxx"
 #include "otmeshing/ConvexDecompositionMesher.hxx"
+#include "otmeshing/ConvexHullMesher.hxx"
 #include "otmeshing/Cylinder.hxx"
 #include "otmeshing/FunctionGraphMesher.hxx"
 #include "otmeshing/UnionMesher.hxx"
