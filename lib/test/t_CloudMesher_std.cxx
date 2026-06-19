@@ -1,10 +1,13 @@
 #include <iostream>
 #include <cmath>
-#include <cassert>
+
+#include <openturns/OT.hxx>
+#include <openturns/OTtestcode.hxx>
 
 #include "otmeshing/otmeshing.hxx"
 
 using namespace OT;
+using namespace OT::Test;
 using namespace OTMESHING;
 
 int main()
@@ -12,7 +15,7 @@ int main()
   // Test default constructor and string representation
   CloudMesher mesher;
   std::cout << "mesher=" << mesher << std::endl;
-  assert(mesher.getClassName() == "CloudMesher");
+  assert_equal(mesher.getClassName(), String("CloudMesher"));
 
   // Test 2D triangulation with BASIC (default)
   {
@@ -22,12 +25,12 @@ int main()
     points[2] = Point({2.0, 0.75});
     points[3] = Point({2.5, 0.75});
     points[4] = Point({3.0, 0.2});
-    [[maybe_unused]] Mesh mesh = mesher.build(points);
-    assert(mesh.getDimension() == 2);
-    assert(mesh.getSimplices().getSize() == 3);
-    assert(mesh.isValid());
-    assert(mesh.isConvex());
-    assert(std::abs(mesh.getVolume() - 0.6125) < 1e-12);
+    Mesh mesh = mesher.build(points);
+    assert_equal(mesh.getDimension(), 2ul);
+    assert_equal(mesh.getSimplices().getSize(), 3ul);
+    assert_equal(mesh.isValid(), true);
+    assert_equal(mesh.isConvex(), true);
+    assert_almost_equal(mesh.getVolume(), 0.6125, 1e-12, 1e-12);
   }
 
   // Test 2D triangulation with DELAUNAY
@@ -39,12 +42,12 @@ int main()
     points[2] = Point({2.0, 0.75});
     points[3] = Point({2.5, 0.75});
     points[4] = Point({3.0, 0.2});
-    [[maybe_unused]] Mesh mesh = delMesher.build(points);
-    assert(mesh.getDimension() == 2);
-    assert(mesh.getSimplices().getSize() == 3);
-    assert(mesh.isValid());
-    assert(mesh.isConvex());
-    assert(std::abs(mesh.getVolume() - 0.6125) < 1e-12);
+    Mesh mesh = delMesher.build(points);
+    assert_equal(mesh.getDimension(), 2ul);
+    assert_equal(mesh.getSimplices().getSize(), 3ul);
+    assert_equal(mesh.isValid(), true);
+    assert_equal(mesh.isConvex(), true);
+    assert_almost_equal(mesh.getVolume(), 0.6125, 1e-12, 1e-12);
   }
 
   // Test 1D case: only min and max become vertices
@@ -53,15 +56,15 @@ int main()
     points[0] = Point({2.5});
     points[1] = Point({1.5});
     points[2] = Point({3.0});
-    [[maybe_unused]] Mesh mesh = mesher.build(points);
-    assert(mesh.getDimension() == 1);
-    assert(mesh.isValid());
-    assert(mesh.isConvex());
-    assert(std::abs(mesh.getVolume() - 1.5) < 1e-12);
-    assert(mesh.getVertices().getSize() == 2);
-    assert(mesh.getSimplices().getSize() == 1);
-    assert(std::abs(mesh.getVertices()[0][0] - 1.5) < 1e-12);
-    assert(std::abs(mesh.getVertices()[1][0] - 3.0) < 1e-12);
+    Mesh mesh = mesher.build(points);
+    assert_equal(mesh.getDimension(), 1ul);
+    assert_equal(mesh.isValid(), true);
+    assert_equal(mesh.isConvex(), true);
+    assert_almost_equal(mesh.getVolume(), 1.5, 1e-12, 1e-12);
+    assert_equal(mesh.getVertices().getSize(), 2ul);
+    assert_equal(mesh.getSimplices().getSize(), 1ul);
+    assert_almost_equal(mesh.getVertices()[0][0], 1.5, 1e-12, 1e-12);
+    assert_almost_equal(mesh.getVertices()[1][0], 3.0, 1e-12, 1e-12);
   }
 
   // Test unit hypercube triangulations
@@ -81,12 +84,12 @@ int main()
             vertices[i][j] = (i >> j) & 1;
           }
         }
-        [[maybe_unused]] Mesh mesh = cubeMesher.build(vertices);
-        assert(mesh.getDimension() == static_cast<SignedInteger>(dim));
-        assert(mesh.getVertices().getSize() == vertices.getSize());
-        assert(mesh.isValid());
-        assert(mesh.isConvex());
-        assert(std::abs(mesh.getVolume() - 1.0) < 1e-12);
+        Mesh mesh = cubeMesher.build(vertices);
+        assert_equal(mesh.getDimension(), dim);
+        assert_equal(mesh.getVertices().getSize(), vertices.getSize());
+        assert_equal(mesh.isValid(), true);
+        assert_equal(mesh.isConvex(), true);
+        assert_almost_equal(mesh.getVolume(), 1.0, 1e-12, 1e-12);
       }
     }
   }
@@ -103,8 +106,7 @@ int main()
     {
       caught = true;
     }
-    assert(caught);
-    (void)caught;
+    assert_equal(caught, true);
   }
 
   // Error cases: insufficient points for 2D
@@ -120,8 +122,7 @@ int main()
     {
       caught = true;
     }
-    assert(caught);
-    (void)caught;
+    assert_equal(caught, true);
   }
 
   // Error cases: 1D with single point
@@ -137,8 +138,7 @@ int main()
     {
       caught = true;
     }
-    assert(caught);
-    (void)caught;
+    assert_equal(caught, true);
   }
 
   std::cout << "All C++ tests passed!" << std::endl;
