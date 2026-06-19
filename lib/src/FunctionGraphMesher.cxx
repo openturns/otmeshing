@@ -23,6 +23,8 @@
 
 #include "otmeshing/FunctionGraphMesher.hxx"
 
+#include <algorithm>
+
 using namespace OT;
 
 namespace OTMESHING
@@ -35,8 +37,10 @@ static const Factory<FunctionGraphMesher> Factory_FunctionGraphMesher;
 /* Default constructor */
 FunctionGraphMesher::FunctionGraphMesher()
   : PersistentObject()
+  , inputInterval_(0.0, 1.0)
+  , inputDiscretization_({1})
 {
-  // Nothing to do
+  initialize();
 }
 
 /* Parameters constructor */
@@ -51,15 +55,16 @@ FunctionGraphMesher::FunctionGraphMesher(const Interval & inputInterval,
 
 void FunctionGraphMesher::initialize()
 {
+  if (inputInterval_.getDimension() < 1)
+    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected an input interval of dimension not less than 1";
   if (inputDiscretization_.getSize() != inputInterval_.getDimension())
     throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected a discretization of dimension " <<  inputInterval_.getDimension() << " got " << inputDiscretization_.getSize();
+  if (*std::min_element(inputDiscretization_.begin(), inputDiscretization_.end()) == 0)
+    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected an input discretization with strictly positive values, got " << inputDiscretization_;
   minInput_ = inputInterval_.getLowerBound();
   maxInput_ = inputInterval_.getUpperBound();
-  if (inputInterval_.getDimension())
-  {
-    inputVertices_ = IntervalMesher(inputDiscretization_).build(inputInterval_).getVertices();
-    kdTree_ = KDTree(inputVertices_);
-  }
+  inputVertices_ = IntervalMesher(inputDiscretization_).build(inputInterval_).getVertices();
+  kdTree_ = KDTree(inputVertices_);
 }
 
 /* Virtual constructor */
@@ -95,11 +100,17 @@ Mesh FunctionGraphMesher::build(const OT::Function & function,
     throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected a function of input dimension " << inputDimension << " got " << function.getInputDimension();
   if (function.getOutputDimension() != 1)
     throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected a function of output dimension 1 got " << function.getOutputDimension();
-  
+  if (minOutput >= maxOutput)
+    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected minOutput=" << minOutput << " to be strictly less than maxOutput=" << maxOutput;
+  if (outputIndex > inputDimension)
+    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected outputIndex=" << outputIndex << " to be less or equal to input dimension=" << inputDimension;
+  if (outputDiscretization == 0)
+    throw InvalidArgumentException(HERE) << "FunctionGraphMesher expected outputDiscretization to be strictly positive";
+
   Point minBound;
   Point maxBound;
   Indices discretization;
-  Description  description;
+  Description description;
   UnsignedInteger index = 0;
   for (UnsignedInteger i = 0; i <= inputDimension; ++ i)
   {
@@ -137,10 +148,10 @@ Mesh FunctionGraphMesher::build(const OT::Function & function,
         point[index] = vertices(i, j);
         ++ index;
       }
-      const UnsignedInteger baseIndex = kdTree_.query(point);
-      const Scalar value = std::clamp(outputValues[baseIndex], minOutput, maxOutput);
-      vertices(i, outputIndex) = a + (value - a) * (vertices(i, outputIndex) - a) / (b - a);
     } // for j
+    const UnsignedInteger baseIndex = kdTree_.query(point);
+    const Scalar value = std::clamp(outputValues[baseIndex], minOutput, maxOutput);
+    vertices(i, outputIndex) = a + (value - a) * (vertices(i, outputIndex) - a) / (b - a);
   } // for i
   Mesh result(vertices, initialMesh.getSimplices());
   result.setName(function.getName());

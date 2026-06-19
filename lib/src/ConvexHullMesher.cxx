@@ -20,6 +20,9 @@
  */
 #include "otmeshing/ConvexHullMesher.hxx"
 #include <openturns/PersistentObjectFactory.hxx>
+#include <openturns/SpecFunc.hxx>
+
+#include <unordered_map>
 
 #include <CGAL/Epick_d.h>
 #include <CGAL/Triangulation.h>
@@ -168,22 +171,25 @@ Mesh ConvexHullMesher::build(const Sample & points) const
   }
 
   // build the vertices
-  Indices inputIndexToHullIndex(size, size);
+  // map from qh_pointid → hull vertex index.
+  // qh_pointid can return values >= size for points that qhull
+  // added itself (e.g. "Qt" triangulation centroids in 3D+),
+  // so we use a variable-size map instead of a fixed-size array.
+  std::unordered_map<SignedInteger, UnsignedInteger> pointIdToHullIndex;
   vertexT *vertex = NULL, **vertexp = NULL;
   UnsignedInteger i = 0;
   FORALLvertices
   {
     if (!vertex->deleted)
     {
-      // qh_pointid gives indices wrt the original input sample
-      const SignedInteger inputIdx = qh_pointid(qh, vertex->point);
+      const SignedInteger pointId = qh_pointid(qh, vertex->point);
 
       Point point(dimension);
       // assume vertex->point is an array of double
       std::copy(vertex->point, vertex->point + dimension, point.begin());
       vertices.add(point);
 
-      inputIndexToHullIndex[inputIdx] = i;
+      pointIdToHullIndex[pointId] = i;
       ++ i;
     }
   }
@@ -199,8 +205,8 @@ Mesh ConvexHullMesher::build(const Sample & points) const
       UnsignedInteger j = 0;
       FOREACHvertex_(facet->vertices)
       {
-        const SignedInteger hullIdx = qh_pointid(qh, vertex->point);
-        simplex[j] = inputIndexToHullIndex[hullIdx];
+        const SignedInteger pointId = qh_pointid(qh, vertex->point);
+        simplex[j] = pointIdToHullIndex.at(pointId);
         ++ j;
       }
 
@@ -219,6 +225,16 @@ Mesh ConvexHullMesher::build(const Sample & points) const
 
   return Mesh(vertices, IndicesCollection(simplexColl));
 #else
+  // CGAL Triangulation requires the input to span all dimension dimensions.
+  if (dimension > 1)
+  {
+    const Point eig(points.computeCovariance().computeEigenValues());
+    if (eig[0] > 0.0 && eig[dimension - 1] < SpecFunc::Precision * eig[0])
+      throw InvalidArgumentException(HERE)
+          << "ConvexHullMesher (CGAL path) requires points spanning all "
+          << dimension << " dimensions. The smallest eigenvalue ratio is "
+          << (eig[dimension - 1] / eig[0]) << ".";
+  }
   return buildConvexHull<DefaultTriangulation>(points);
 #endif
 }

@@ -23,6 +23,13 @@
 #define OTMESHING_OTMESHING_HXX
 
 #include "otmeshing/CloudMesher.hxx"
+#include "otmeshing/ConvexDecompositionMesher.hxx"
+#include "otmeshing/ConvexHullMesher.hxx"
+#include "otmeshing/Cylinder.hxx"
+#include "otmeshing/FunctionGraphMesher.hxx"
+#include "otmeshing/MeshDomain2.hxx"
+#include "otmeshing/PolygonMesher.hxx"
+#include "otmeshing/UnionMesher.hxx"
 
 #endif // OTMESHING_OTMESHING_HXX
 
