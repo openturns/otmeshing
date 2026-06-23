@@ -50,7 +50,7 @@ int main()
     f.setInputDescription({"x"});
     f.setOutputDescription({"y"});
 
-    FunctionGraphMesher mesher1(Interval({0.0}, {1.0}), Indices({5}));
+    FunctionGraphMesher mesher1(Interval(0.0, 1.0), Indices({5}));
     fullprint << "mesher = " << mesher1 << std::endl;
 
     // subGraph=True, outputIndex=1 (output last)
@@ -84,7 +84,7 @@ int main()
     // 3. 1D constant function
     fullprint << "1D constant function" << std::endl;
     SymbolicFunction f_zero(Description({"x"}), Description({"0.0"}));
-    FunctionGraphMesher mesher_cst(Interval({0.0}, {1.0}), Indices({1}));
+    FunctionGraphMesher mesher_cst(Interval(0.0, 1.0), Indices({1}));
     mesh = mesher_cst.build(f_zero, 1, -1.0, 1.0, 1, true);
     assert_almost_equal(mesh.getVolume(), 1.0);  // int(0-(-1))dx = 1
     mesh = mesher_cst.build(f_zero, 1, -1.0, 1.0, 1, false);
