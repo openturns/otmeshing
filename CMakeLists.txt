@@ -28,9 +28,12 @@ if (USE_QHULL)
 endif ()
 
 option (USE_CDDLIB "Use cddlib for intersection" ON)
-option (USE_CDDLIB_GMP "Use cddlib gmp variant" OFF)
+option (USE_CDDLIB_GMP "Use cddlib gmp variant" ON)
 if (USE_CDDLIB)
   find_package (cddlib MODULE)
+  if (USE_CDDLIB_GMP AND NOT CDDLIB_GMP_LIBRARY)
+    message (FATAL_ERROR "USE_CDDLIB_GMP is ON but cddgmp library not found")
+  endif ()
 endif ()
 
 option (USE_TBB "Use TBB for multi-threading" ON)

@@ -70,6 +70,9 @@ public:
   void setUseSimplicesDecomposition(const OT::Bool useSimplicesDecomposition);
   OT::Bool getUseSimplicesDecomposition() const;
 
+  /** Intersection of two convexes */
+  OT::Sample buildConvexSample(const OT::Sample & s1, const OT::Sample & s2) const;
+
   /** Method save() stores the object through the StorageManager */
   void save(OT::Advocate & adv) const override;
 

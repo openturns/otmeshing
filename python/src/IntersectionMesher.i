@@ -25,6 +25,17 @@ namespace OT {
     }
     return OTMESHING::Cylinder();
   }
+
+  // Needed by canConvertCollectionObjectFromPySequence<Sample> which is
+  // called from the SampleCollection typecheck typemap (ProcessSample.i
+  // is imported but its percent-brace block is not included by SWIG for imports).
+  template <>
+  inline
+  bool canConvert<OT::_PySequence_, OT::Sample>(_object * pyObj)
+  {
+    return SWIG_IsOK(SWIG_ConvertPtr(pyObj, NULL, SWIG_TypeQuery("OT::Sample *"), SWIG_POINTER_NO_NULL))
+             || OT::isAPythonBufferOf<OT::Scalar, 2>(pyObj) || OT::isAPythonSequenceOf<OT::_PySequence_>(pyObj);
+  }
 }
 %}
 
