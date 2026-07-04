@@ -133,7 +133,7 @@ int main()
     }
     const Sample result(mesher.buildConvexSample(coll));
     std::cout << "buildConvexSample pairwise: " << result << std::endl;
-    OT::Test::assert(result.getSize() >= 3);
+    (OT::Test::assert)(result.getSize() >= 3);
   }
 
   // 10. buildConvexSample two-argument overload
@@ -150,7 +150,7 @@ int main()
     s2.add(Point({0.5, 1.5}));
     const Sample result(mesher.buildConvexSample(s1, s2));
     std::cout << "buildConvexSample two-arg: " << result << std::endl;
-    OT::Test::assert(result.getSize() >= 3);
+    (OT::Test::assert)(result.getSize() >= 3);
   }
 
   // 11. buildConvexSample dimension mismatch should throw
