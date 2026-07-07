@@ -28,7 +28,7 @@ if (USE_QHULL)
 endif ()
 
 option (USE_CDDLIB "Use cddlib for intersection" ON)
-option (USE_CDDLIB_GMP "Use cddlib gmp variant" OFF)
+option (USE_CDDLIB_GMP "Use cddlib gmp variant" ON)
 if (USE_CDDLIB)
   find_package (cddlib MODULE)
 endif ()
