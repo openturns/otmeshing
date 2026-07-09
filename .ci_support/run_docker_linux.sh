@@ -12,7 +12,7 @@ cmake -DCMAKE_INSTALL_PREFIX=${HOME}/.local \
 cd build
 make install
 make tests
-ctest --output-on-failure --timeout 100 ${MAKEFLAGS} -E plot_full
+ctest --output-on-failure --timeout 100 ${MAKEFLAGS}
 
 # coverage
 gcov `find lib/src/ -name "*.gcno"`

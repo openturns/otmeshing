@@ -50,6 +50,13 @@ algoInter = otm.IntersectionMesher()
 algoDecomp = otm.ConvexDecompositionMesher()
 
 # %%
+# the default is simplicial decomposition but with coacd enabled
+# (instead of cgal) the decomposition step becomes interesting
+if otm.ConvexDecompositionMesher.HasFeature("coacd"):
+    algoDecomp.setUseSimplicesDecomposition(False)
+    algoInter.setUseSimplicesDecomposition(False)
+
+# %%
 # Define the first constraint :math:`C_1` as the interior of the convex hull of a set of points in 2D
 # :math:`C_1` acts on :math:`(x_0, x_1)`
 points1 = ot.Normal(2).getSample(20)
@@ -172,8 +179,16 @@ print("Number of convex parts=", len(meshConvexParts))
 print(f"t={t1 - t0} s")
 
 # %%
+# Compute the intersection of the function graph with domain
+#
+# pass directly the cylinder intersection as decomposition of convexes to avoid
+# the final assembly step yielding incompatible topology on shared faces
+# because of the independent triangulations of each convex component
+# (every edge must be shared by exactly two triangles with opposite orientation)
+# else CoACD would throw "The mesh is not a 2-manifold!".
 t0 = time()
-globalMesh = algoInter.build([mesh, meshAllCylinders])
+convexPiecesAllCylinders = algoInter.buildCylinderConvex([C_1, C_2, C_3])
+globalMesh = algoInter.buildWithConvexParts(mesh, convexPiecesAllCylinders)
 t1 = time()
 ot.BoundaryMesher().build(globalMesh).exportToVTKFile("global.vtk")
 print(f"t={t1 - t0} s")
