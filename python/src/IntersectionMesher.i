@@ -25,6 +25,27 @@ namespace OT {
     }
     return OTMESHING::Cylinder();
   }
+
+  template <>
+  inline
+  bool
+  canConvert< _PyObject_, OT::Mesh >(PyObject * pyObj)
+  {
+    void * ptr = 0;
+    if (SWIG_IsOK(SWIG_ConvertPtr(pyObj, &ptr, SWIG_TypeQuery("OT::Mesh *"), SWIG_POINTER_NO_NULL))) {
+      OT::Mesh * p_nmf = reinterpret_cast< OT::Mesh * >(ptr);
+      return p_nmf != NULL;
+    }
+    return false;
+  }
+
+  template <>
+  inline
+  bool canConvert<OT::_PySequence_, OT::Sample >(_object * pyObj)
+  {
+    return SWIG_IsOK(SWIG_ConvertPtr(pyObj, NULL, SWIG_TypeQuery("OT::Sample *"), SWIG_POINTER_NO_NULL))
+             || OT::isAPythonBufferOf<OT::Scalar, 2>(pyObj) || OT::isAPythonSequenceOf<OT::_PySequence_>(pyObj);
+  }
 }
 %}
 

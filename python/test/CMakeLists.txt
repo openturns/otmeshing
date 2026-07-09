@@ -42,6 +42,8 @@ ot_pyinstallcheck_test (ConvexHullMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (ConvexDecompositionMesher_std IGNOREOUT)
 if (cddlib_FOUND)
   ot_pyinstallcheck_test (IntersectionMesher_std IGNOREOUT)
+  ot_pyinstallcheck_test (IntersectionMesher_bench IGNOREOUT)
+  set_tests_properties (pyinstallcheck_IntersectionMesher_bench PROPERTIES RUN_SERIAL TRUE)
   ot_pyinstallcheck_test (Cylinder_std IGNOREOUT)
 endif ()
 ot_pyinstallcheck_test (FunctionGraphMesher_std IGNOREOUT)
@@ -60,7 +62,9 @@ if (MATPLOTLIB_FOUND)
       set_tests_properties (pyinstallcheck_example_${TESTNAME} PROPERTIES ENVIRONMENT "${PYINSTALLCHECK_ENVIRONMENT}")
     endif ()
   endforeach ()
+  set_tests_properties (pyinstallcheck_example_plot_full PROPERTIES RUN_SERIAL TRUE)
 endif ()
+
 
 add_custom_target ( pyinstallcheck COMMAND ${CMAKE_CTEST_COMMAND} -R "^pyinstallcheck_"
                     COMMENT "Run Python post-installation tests" )
