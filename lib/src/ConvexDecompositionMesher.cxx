@@ -765,5 +765,19 @@ void ConvexDecompositionMesher::load(Advocate & adv)
   adv.loadAttribute("useSimplicesDecomposition_", useSimplicesDecomposition_);
 }
 
+Bool ConvexDecompositionMesher::HasFeature(const OT::String & feature)
+{
+  if (feature == "coacd")
+  {
+#ifdef OPENTURNS_HAVE_COACD
+    return true;
+#else
+    return false;
+#endif
+  }
+  else
+    throw InvalidArgumentException(HERE) << "Unknown feature: " << feature;
+}
+
 
 } /* namespace OTMESHING */

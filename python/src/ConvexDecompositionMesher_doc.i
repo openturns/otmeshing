@@ -63,3 +63,19 @@ Returns
 useSimplicesDecomposition : bool
     Whether to decompose the mesh by its simplices.
 "
+
+// ---------------------------------------------------------------------
+
+%feature("docstring") OTMESHING::ConvexDecompositionMesher::HasFeature
+"Test available features.
+
+Parameters
+----------
+feature : str
+    A feature (for example coacd).
+
+Returns
+-------
+hasFeature : bool
+    Whether the feature is enabled.
+"

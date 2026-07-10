@@ -66,6 +66,7 @@ public:
   /** Method load() reloads the object from the StorageManager */
   void load(OT::Advocate & adv) override;
 
+  static OT::Bool HasFeature(const OT::String & feature);
 protected:
   OT::Bool useSimplicesDecomposition_ = false;
 
