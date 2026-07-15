@@ -37,6 +37,7 @@ ot_check_test (ConvexDecompositionMesher_std IGNOREOUT)
 ot_check_test (ConvexHullMesher_std IGNOREOUT)
 ot_check_test (PolygonMesher_std IGNOREOUT)
 ot_check_test (MeshDomain2_std IGNOREOUT)
+ot_check_test (VolumeMesher_std IGNOREOUT)
 
 
 add_custom_target ( cppcheck COMMAND ${CMAKE_CTEST_COMMAND} -R "^cppcheck_"

@@ -55,6 +55,7 @@ ot_add_python_module( ${PACKAGE_NAME} ${PACKAGE_NAME}_module.i
                       MeshDomain2.i MeshDomain2_doc.i
                       PolygonMesher.i PolygonMesher_doc.i
                       UnionMesher.i UnionMesher_doc.i
+                      VolumeMesher.i VolumeMesher_doc.i
                     )
 
 

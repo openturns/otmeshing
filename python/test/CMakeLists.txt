@@ -50,6 +50,7 @@ ot_pyinstallcheck_test (FunctionGraphMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (MeshDomain2_std IGNOREOUT)
 ot_pyinstallcheck_test (PolygonMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (UnionMesher_std IGNOREOUT)
+ot_pyinstallcheck_test (VolumeMesher_std IGNOREOUT)
 ot_pyinstallcheck_test (docstring IGNOREOUT)
 ot_pyinstallcheck_test (saveload IGNOREOUT)
 
