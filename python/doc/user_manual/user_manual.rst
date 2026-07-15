@@ -16,3 +16,4 @@ API Reference
     MeshDomain2
     PolygonMesher
     UnionMesher
+    VolumeMesher
