@@ -27,7 +27,9 @@
 #include "otmeshing/IntersectionMesher.hxx"
 #include "otmeshing/CloudMesher.hxx"
 #include "otmeshing/ConvexDecompositionMesher.hxx"
+#include "otmeshing/ConvexHullMesher.hxx"
 #include "otmeshing/UnionMesher.hxx"
+#include "otmeshing/VolumeMesher.hxx"
 
 #ifdef OPENTURNS_HAVE_CDDLIB
 #include <setoper.h>
@@ -292,8 +294,8 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
   }
   else if (intersectionVerticesNumber > (dimension + 1))
   {
-    // V>d+1, decompose into several simplices
-    result = CloudMesher().build(intersectionVertices);
+    // fewer tets than delaunay with CloudMesher
+    result = VolumeMesher().build(ConvexHullMesher().build(intersectionVertices));
   }
   return result;
 }
