@@ -18,6 +18,9 @@
  *  along with this library.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+#include <unordered_map>
+#include <set>
+
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
 #include <openturns/TBBImplementation.hxx>
@@ -311,7 +314,247 @@ struct IntersectionMesherConvexSampleHMatrixPolicy
     }
   }
 };
+
+struct IntersectionMesherConvexSampleHMatrixFilteredPolicy
+{
+  const std::vector<ScopedMatrixPtr> & h1_;
+  const std::vector<ScopedMatrixPtr> & h2_;
+  const std::vector<UnsignedInteger> & candI_;
+  const std::vector<UnsignedInteger> & candJ_;
+  UnsignedInteger done_;
+  Collection<Sample> & output_;
+  UnsignedInteger dimension_;
+
+  IntersectionMesherConvexSampleHMatrixFilteredPolicy(
+      const std::vector<ScopedMatrixPtr> & h1,
+      const std::vector<ScopedMatrixPtr> & h2,
+      const std::vector<UnsignedInteger> & candI,
+      const std::vector<UnsignedInteger> & candJ,
+      const UnsignedInteger done,
+      Collection<Sample> & output,
+      const UnsignedInteger dimension)
+    : h1_(h1)
+    , h2_(h2)
+    , candI_(candI)
+    , candJ_(candJ)
+    , done_(done)
+    , output_(output)
+    , dimension_(dimension)
+  {}
+
+  inline void operator()(const TBBImplementation::BlockedRange<UnsignedInteger> & r) const
+  {
+    for (UnsignedInteger n = r.begin(); n != r.end(); ++ n)
+    {
+      const UnsignedInteger i = candI_[n + done_];
+      const UnsignedInteger j = candJ_[n + done_];
+      output_[n] = IntersectFromH(h1_[i].get(), h2_[j].get(), dimension_);
+    }
+  }
+};
 #endif
+
+struct IntersectionMesherConvexSampleFilteredPolicy
+{
+  const IntersectionMesher & intersectionMesher_;
+  const Collection<Sample> & input1_;
+  const Collection<Sample> & input2_;
+  const std::vector<UnsignedInteger> & candI_;
+  const std::vector<UnsignedInteger> & candJ_;
+  UnsignedInteger done_;
+  Collection<Sample> & output_;
+
+  IntersectionMesherConvexSampleFilteredPolicy(const IntersectionMesher & intersectionMesher,
+      const Collection<Sample> & input1,
+      const Collection<Sample> & input2,
+      const std::vector<UnsignedInteger> & candI,
+      const std::vector<UnsignedInteger> & candJ,
+      const UnsignedInteger done,
+      Collection<Sample> & output)
+    : intersectionMesher_(intersectionMesher)
+    , input1_(input1)
+    , input2_(input2)
+    , candI_(candI)
+    , candJ_(candJ)
+    , done_(done)
+    , output_(output)
+  {}
+
+  inline void operator()(const TBBImplementation::BlockedRange<UnsignedInteger> & r) const
+  {
+    for (UnsignedInteger n = r.begin(); n != r.end(); ++ n)
+    {
+      const UnsignedInteger i = candI_[n + done_];
+      const UnsignedInteger j = candJ_[n + done_];
+      output_[n] = intersectionMesher_.buildConvexSample(input1_[i], input2_[j]);
+    }
+  }
+};
+
+struct SimplexAABB
+{
+  OT::Point lower;
+  OT::Point upper;
+};
+
+static SimplexAABB ComputeSimplexAABB(const Sample & vertices,
+    const IndicesCollection & simplices,
+    const UnsignedInteger simplexIndex)
+{
+  const UnsignedInteger dim = vertices.getDimension();
+  SimplexAABB aabb;
+  aabb.lower = Point(dim, SpecFunc::Infinity);
+  aabb.upper = Point(dim, -SpecFunc::Infinity);
+  for (UnsignedInteger i = 0; i <= dim; ++ i)
+  {
+    const UnsignedInteger vi = simplices(simplexIndex, i);
+    for (UnsignedInteger k = 0; k < dim; ++ k)
+    {
+      const Scalar val = vertices(vi, k);
+      if (val < aabb.lower[k]) aabb.lower[k] = val;
+      if (val > aabb.upper[k]) aabb.upper[k] = val;
+    }
+  }
+  return aabb;
+}
+
+static Bool AABBOverlap(const SimplexAABB & a, const SimplexAABB & b)
+{
+  const UnsignedInteger dim = a.lower.getDimension();
+  for (UnsignedInteger k = 0; k < dim; ++ k)
+    if (!(a.upper[k] > b.lower[k]) || !(b.upper[k] > a.lower[k]))
+      return false;
+  return true;
+}
+
+class SimplexGrid
+{
+public:
+  SimplexGrid(const std::vector<SimplexAABB> & aabbs, UnsignedInteger targetCellsPerDim)
+    : dimension_(aabbs.empty() ? 1 : aabbs[0].lower.getDimension())
+  {
+    if (aabbs.empty()) return;
+
+    Point globalMin(dimension_, SpecFunc::Infinity);
+    Point globalMax(dimension_, -SpecFunc::Infinity);
+    for (const auto & aabb : aabbs)
+    {
+      for (UnsignedInteger k = 0; k < dimension_; ++ k)
+      {
+        if (aabb.lower[k] < globalMin[k]) globalMin[k] = aabb.lower[k];
+        if (aabb.upper[k] > globalMax[k]) globalMax[k] = aabb.upper[k];
+      }
+    }
+
+    origin_ = globalMin;
+    Scalar maxExtent = 0;
+    for (UnsignedInteger k = 0; k < dimension_; ++ k)
+    {
+      const Scalar ext = globalMax[k] - globalMin[k];
+      if (ext > maxExtent) maxExtent = ext;
+    }
+    if (maxExtent <= 0.0) maxExtent = 1.0;
+
+    cellSize_ = maxExtent / static_cast<Scalar>(targetCellsPerDim);
+    if (cellSize_ <= 0.0) cellSize_ = 1.0;
+
+    nCells_.resize(dimension_);
+    strides_.resize(dimension_);
+    UnsignedInteger stride = 1;
+    for (UnsignedInteger k = 0; k < dimension_; ++ k)
+    {
+      nCells_[k] = static_cast<UnsignedInteger>(
+          std::max(1.0, ceil((globalMax[k] - globalMin[k]) / cellSize_)));
+      strides_[k] = stride;
+      stride *= nCells_[k];
+    }
+    totalCells_ = stride;
+
+    for (UnsignedInteger idx = 0; idx < aabbs.size(); ++ idx)
+    {
+      const auto & aabb = aabbs[idx];
+      Indices lo(dimension_), hi(dimension_);
+      for (UnsignedInteger k = 0; k < dimension_; ++ k)
+      {
+        lo[k] = static_cast<UnsignedInteger>(std::max(0.0,
+            floor((aabb.lower[k] - origin_[k]) / cellSize_)));
+        hi[k] = static_cast<UnsignedInteger>(std::min(
+            static_cast<double>(nCells_[k] - 1),
+            floor((aabb.upper[k] - origin_[k]) / cellSize_)));
+        if (hi[k] < lo[k]) hi[k] = lo[k];
+      }
+
+      UnsignedInteger nBox = 1;
+      for (UnsignedInteger k = 0; k < dimension_; ++ k)
+        nBox *= (hi[k] - lo[k] + 1);
+
+      for (UnsignedInteger c = 0; c < nBox; ++ c)
+      {
+        Indices coord(dimension_);
+        UnsignedInteger tmp = c;
+        UnsignedInteger linIdx = 0;
+        for (UnsignedInteger k = 0; k < dimension_; ++ k)
+        {
+          const UnsignedInteger span = hi[k] - lo[k] + 1;
+          coord[k] = lo[k] + (tmp % span);
+          tmp /= span;
+          linIdx += coord[k] * strides_[k];
+        }
+        cells_[linIdx].push_back(idx);
+      }
+    }
+  }
+
+  template <typename Func>
+  void query(const SimplexAABB & aabb, Func func) const
+  {
+    Indices lo(dimension_), hi(dimension_);
+    for (UnsignedInteger k = 0; k < dimension_; ++ k)
+    {
+      const SignedInteger lo_s = std::max(SignedInteger(0),
+          (SignedInteger)std::floor((aabb.lower[k] - origin_[k]) / cellSize_));
+      const SignedInteger hi_s = std::min(
+          (SignedInteger)(nCells_[k] - 1),
+          (SignedInteger)std::floor((aabb.upper[k] - origin_[k]) / cellSize_));
+      if (hi_s < lo_s) return;
+      lo[k] = (UnsignedInteger)lo_s;
+      hi[k] = (UnsignedInteger)hi_s;
+    }
+
+    UnsignedInteger nBox = 1;
+    for (UnsignedInteger k = 0; k < dimension_; ++ k)
+      nBox *= (hi[k] - lo[k] + 1);
+
+    for (UnsignedInteger c = 0; c < nBox; ++ c)
+    {
+      Indices coord(dimension_);
+      UnsignedInteger tmp = c;
+      UnsignedInteger linIdx = 0;
+      for (UnsignedInteger k = 0; k < dimension_; ++ k)
+      {
+        const UnsignedInteger span = hi[k] - lo[k] + 1;
+        coord[k] = lo[k] + (tmp % span);
+        tmp /= span;
+        linIdx += coord[k] * strides_[k];
+      }
+      auto it = cells_.find(linIdx);
+      if (it != cells_.end())
+      {
+        for (UnsignedInteger j : it->second)
+          func(j);
+      }
+    }
+  }
+
+private:
+  UnsignedInteger dimension_;
+  Point origin_;
+  Scalar cellSize_;
+  Indices nCells_;
+  Indices strides_;
+  UnsignedInteger totalCells_;
+  std::unordered_map<UnsignedInteger, std::vector<UnsignedInteger>> cells_;
+};
 
 Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
 {
@@ -386,19 +629,95 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
 
     const UnsignedInteger blockSize = std::max(UnsignedInteger(1), ResourceMap::GetAsUnsignedInteger("IntersectionMesher-BlockSize"));
     Collection<Sample> result(0);
-    const UnsignedInteger toDoSize = unionSize * nextSize;
+    std::vector<UnsignedInteger> candI, candJ;
+    UnsignedInteger toDoSize = unionSize * nextSize;
+    static const UnsignedInteger SPATIAL_THRESHOLD = 50;
+    Bool filtered = false;
+
+    if ((unionSize > SPATIAL_THRESHOLD) && (nextSize > SPATIAL_THRESHOLD))
+    {
+      filtered = true;
+      std::vector<SimplexAABB> unionAABB(unionSize);
+#ifdef OPENTURNS_HAVE_CDDLIB
+      if (i == 1)
+      {
+        const IndicesCollection & simp0 = coll[0].getSimplices();
+        const Sample & verts0 = coll[0].getVertices();
+        for (UnsignedInteger j = 0; j < unionSize; ++ j)
+          unionAABB[j] = ComputeSimplexAABB(verts0, simp0, j);
+      }
+      else
+#endif
+      {
+        for (UnsignedInteger j = 0; j < unionSize; ++ j)
+        {
+          unionAABB[j].lower = unionVertices[j].getMin();
+          unionAABB[j].upper = unionVertices[j].getMax();
+        }
+      }
+      std::vector<SimplexAABB> nextAABB(nextSize);
+#ifdef OPENTURNS_HAVE_CDDLIB
+      {
+        const IndicesCollection & simpI = coll[i].getSimplices();
+        const Sample & vertsI = coll[i].getVertices();
+        for (UnsignedInteger j = 0; j < nextSize; ++ j)
+          nextAABB[j] = ComputeSimplexAABB(vertsI, simpI, j);
+      }
+#else
+      for (UnsignedInteger j = 0; j < nextSize; ++ j)
+      {
+        nextAABB[j].lower = nextVertices[j].getMin();
+        nextAABB[j].upper = nextVertices[j].getMax();
+      }
+#endif
+      UnsignedInteger targetPerDim = static_cast<UnsignedInteger>(
+          ceil(pow(static_cast<double>(nextSize), 1.0 / dimension)));
+      if (targetPerDim < 4) targetPerDim = 4;
+      if (targetPerDim > 25) targetPerDim = 25;
+
+      candI.reserve(std::min(unionSize * nextSize, unionSize * 128u));
+      candJ.reserve(std::min(unionSize * nextSize, unionSize * 128u));
+
+      SimplexGrid grid(nextAABB, targetPerDim);
+
+      std::set<std::pair<UnsignedInteger, UnsignedInteger>> seen;
+      for (UnsignedInteger j = 0; j < unionSize; ++ j)
+      {
+        grid.query(unionAABB[j], [&](UnsignedInteger k) {
+          if (AABBOverlap(unionAABB[j], nextAABB[k]) && seen.insert({j, k}).second)
+          {
+            candI.push_back(j);
+            candJ.push_back(k);
+          }
+        });
+      }
+    }
+    if (filtered)
+      toDoSize = candI.size();
 
     Collection<Sample> resultChunk(std::min(blockSize, toDoSize));
     for (UnsignedInteger done = 0; done < toDoSize; done += blockSize)
     {
       const UnsignedInteger actualBlockSize = std::min(blockSize, toDoSize - done);
       resultChunk.resize(actualBlockSize);
+      if (!filtered)
+      {
 #ifdef OPENTURNS_HAVE_CDDLIB
-      const IntersectionMesherConvexSampleHMatrixPolicy policy(unionH, nextH, done, resultChunk, dimension);
+        const IntersectionMesherConvexSampleHMatrixPolicy policy(unionH, nextH, done, resultChunk, dimension);
 #else
-      const IntersectionMesherConvexSamplePolicy policy(*this, unionVertices, nextVertices, done, resultChunk);
+        const IntersectionMesherConvexSamplePolicy policy(*this, unionVertices, nextVertices, done, resultChunk);
 #endif
-      TBBImplementation::ParallelFor(0, actualBlockSize, policy);
+        TBBImplementation::ParallelFor(0, actualBlockSize, policy);
+      }
+      else
+      {
+#ifdef OPENTURNS_HAVE_CDDLIB
+        const IntersectionMesherConvexSampleHMatrixFilteredPolicy policy(unionH, nextH, candI, candJ, done, resultChunk, dimension);
+#else
+        const IntersectionMesherConvexSampleFilteredPolicy policy(*this, unionVertices, nextVertices, candI, candJ, done, resultChunk);
+#endif
+        TBBImplementation::ParallelFor(0, actualBlockSize, policy);
+      }
 
       for (UnsignedInteger i0 = 0; i0 < actualBlockSize; ++ i0)
       {
