@@ -263,6 +263,57 @@ String cdd_error_to_string(const dd_ErrorType err)
         return "Unknown cddlib error";
   }
 }
+
+struct ScopedMatrixPtr
+{
+  dd_MatrixPtr ptr_;
+
+  ScopedMatrixPtr() : ptr_(nullptr) {}
+  explicit ScopedMatrixPtr(dd_MatrixPtr p) : ptr_(p) {}
+  ~ScopedMatrixPtr() { if (ptr_) dd_FreeMatrix(ptr_); }
+
+  ScopedMatrixPtr(ScopedMatrixPtr && other) : ptr_(other.ptr_) { other.ptr_ = nullptr; }
+  ScopedMatrixPtr(const ScopedMatrixPtr &) = delete;
+  ScopedMatrixPtr & operator=(ScopedMatrixPtr && other)
+  {
+    if (ptr_) dd_FreeMatrix(ptr_);
+    ptr_ = other.ptr_;
+    other.ptr_ = nullptr;
+    return *this;
+  }
+  ScopedMatrixPtr & operator=(const ScopedMatrixPtr &) = delete;
+
+  dd_MatrixPtr get() const { return ptr_; }
+  dd_MatrixPtr * ptrAddr() { return &ptr_; }
+  dd_MatrixPtr release() { dd_MatrixPtr p = ptr_; ptr_ = nullptr; return p; }
+  void reset(dd_MatrixPtr p = nullptr) { if (ptr_) dd_FreeMatrix(ptr_); ptr_ = p; }
+  dd_MatrixPtr operator->() const { return ptr_; }
+};
+
+struct ScopedPolyhedraPtr
+{
+  dd_PolyhedraPtr ptr_;
+
+  ScopedPolyhedraPtr() : ptr_(nullptr) {}
+  explicit ScopedPolyhedraPtr(dd_PolyhedraPtr p) : ptr_(p) {}
+  ~ScopedPolyhedraPtr() { if (ptr_) dd_FreePolyhedra(ptr_); }
+
+  ScopedPolyhedraPtr(ScopedPolyhedraPtr && other) : ptr_(other.ptr_) { other.ptr_ = nullptr; }
+  ScopedPolyhedraPtr(const ScopedPolyhedraPtr &) = delete;
+  ScopedPolyhedraPtr & operator=(ScopedPolyhedraPtr && other)
+  {
+    if (ptr_) dd_FreePolyhedra(ptr_);
+    ptr_ = other.ptr_;
+    other.ptr_ = nullptr;
+    return *this;
+  }
+  ScopedPolyhedraPtr & operator=(const ScopedPolyhedraPtr &) = delete;
+
+  dd_PolyhedraPtr get() const { return ptr_; }
+  dd_PolyhedraPtr release() { dd_PolyhedraPtr p = ptr_; ptr_ = nullptr; return p; }
+  void reset(dd_PolyhedraPtr p = nullptr) { if (ptr_) dd_FreePolyhedra(ptr_); ptr_ = p; }
+  dd_PolyhedraPtr operator->() const { return ptr_; }
+};
 #endif
 
 
@@ -346,76 +397,50 @@ Sample IntersectionMesher::buildConvexSample(const Collection<Sample> & coll) co
 
 #ifdef OPENTURNS_HAVE_CDDLIB
 
-  // initialize cddlib
   dd_ErrorType err = dd_NoError;
 
-  // allocate H-representation of intersection
-  dd_MatrixPtr intersectionH = dd_CreateMatrix(0, dimension + 1);
-  dd_SetMatrixRepresentationType(intersectionH, dd_Inequality);
+  ScopedMatrixPtr intersectionH(dd_CreateMatrix(0, dimension + 1));
+  dd_SetMatrixRepresentationType(intersectionH.get(), dd_Inequality);
 
-  // for each convex
   for (UnsignedInteger i = 0; i < remainingSize; ++ i)
   {
     const Sample vertices1(coll[remainingIndices[i]]);
     const UnsignedInteger nv1 = vertices1.getSize();
 
-    // allocate V-representation
-    dd_MatrixPtr m1 = dd_CreateMatrix(nv1, dimension + 1);
-    dd_SetMatrixRepresentationType(m1, dd_Generator);
+    ScopedMatrixPtr m1(dd_CreateMatrix(nv1, dimension + 1));
+    dd_SetMatrixRepresentationType(m1.get(), dd_Generator);
     for (UnsignedInteger i1 = 0; i1 < nv1; ++ i1)
     {
-      // homogeneous coordinate
       dd_set_d(m1->matrix[i1][0], 1.0);
       for (UnsignedInteger k = 0; k < dimension; ++ k)
-      {
         dd_set_d(m1->matrix[i1][k + 1], vertices1(i1, k));
-      }
     }
 
-    dd_PolyhedraPtr p1 = dd_DDMatrix2Poly(m1, &err);
+    ScopedPolyhedraPtr p1(dd_DDMatrix2Poly(m1.get(), &err));
     if (err != dd_NoError)
       throw InternalException(HERE) << "dd_DDMatrix2Poly failed for mesh 1: " << cdd_error_to_string(err);
 
-    // Convert V-representation to H-representation (inequalities)
-    dd_MatrixPtr h1 = dd_CopyInequalities(p1);
+    ScopedMatrixPtr h1(dd_CopyInequalities(p1.get()));
+    dd_MatrixAppendTo(intersectionH.ptrAddr(), h1.get());
+  }
 
-    // Combine inequalities
-    dd_MatrixAppendTo(&intersectionH, h1);
-
-    // free memory
-    dd_FreeMatrix(m1);
-    dd_FreePolyhedra(p1);
-    dd_FreeMatrix(h1);
-
-  } // i loop
-
-  // Convert intersection back to V-representation
-  dd_PolyhedraPtr intersectionV = dd_DDMatrix2Poly(intersectionH, &err);
+  ScopedPolyhedraPtr intersectionV(dd_DDMatrix2Poly(intersectionH.get(), &err));
   if (err != dd_NoError)
     throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection: " << cdd_error_to_string(err);
-  dd_FreeMatrix(intersectionH);
 
-  // retrieve vertices
-  dd_MatrixPtr gen = dd_CopyGenerators(intersectionV);
-  dd_FreePolyhedra(intersectionV);
-  const UnsignedInteger intersectionVerticesNumber = gen->rowsize; // empty intersection if zero
+  ScopedMatrixPtr gen(dd_CopyGenerators(intersectionV.get()));
+  const UnsignedInteger intersectionVerticesNumber = gen->rowsize;
   if (intersectionVerticesNumber >= (dimension + 1))
   {
-    // retrieve vertices
-    for (UnsignedInteger i = 0; i < intersectionVerticesNumber; ++i)
+    result = Sample(intersectionVerticesNumber, dimension);
+    for (UnsignedInteger i = 0; i < intersectionVerticesNumber; ++ i)
     {
-      // First entry = 1 -> point, 0 -> ray
       if (dd_get_d(gen->matrix[i][0]) != 1.0)
         throw InternalException(HERE) << "assumed only points, no rays";
-
-      Point vertex(dimension);
       for (UnsignedInteger j = 0; j < dimension; ++ j)
-        vertex[j] = dd_get_d(gen->matrix[i][j + 1]);
-      result.add(vertex);
+        result(i, j) = dd_get_d(gen->matrix[i][j + 1]);
     }
   }
-  dd_FreeMatrix(gen);
-
   return result;
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
