@@ -27,6 +27,7 @@
 #include "otmeshing/ConvexHullMesher.hxx"
 #include "otmeshing/Cylinder.hxx"
 #include "otmeshing/FunctionGraphMesher.hxx"
+#include "otmeshing/IntersectionMesher.hxx"
 #include "otmeshing/MeshDomain2.hxx"
 #include "otmeshing/PolygonMesher.hxx"
 #include "otmeshing/UnionMesher.hxx"
