@@ -863,39 +863,6 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
   return UnionMesher().build(collMesh);
 }
 
-Mesh IntersectionMesher::buildWithConvexParts(const Mesh & mesh, const SampleCollection & convexPieces) const
-{
-  ConvexDecompositionMesher convexDecompositionMesher;
-  convexDecompositionMesher.setUseSimplicesDecomposition(useSimplicesDecomposition_);
-  Collection<Sample> unionCurrent;
-  const Collection<Mesh> baseDecomposition0(convexDecompositionMesher.build(mesh));
-  for (UnsignedInteger j = 0; j < baseDecomposition0.getSize(); ++ j)
-    unionCurrent.add(baseDecomposition0[j].getVertices());
-
-  const UnsignedInteger toDoSize = unionCurrent.getSize() * convexPieces.getSize();
-  const UnsignedInteger blockSize = ResourceMap::GetAsUnsignedInteger("IntersectionMesher-BlockSize");
-  Collection<Sample> result(0);
-  Collection<Sample> resultChunk(blockSize);
-  for (UnsignedInteger done = 0; done < toDoSize; done += blockSize)
-  {
-    const UnsignedInteger actualBlockSize = std::min(blockSize, toDoSize - done);
-    const IntersectionMesherConvexSamplePolicy policy(*this, unionCurrent, convexPieces, done, resultChunk);
-    TBBImplementation::ParallelFor(0, actualBlockSize, policy);
-    for (UnsignedInteger i0 = 0; i0 < actualBlockSize; ++ i0)
-      if (resultChunk[i0].getSize())
-        result.add(resultChunk[i0]);
-  }
-
-  if (!result.getSize())
-    return Mesh(Sample(0, mesh.getDimension()));
-
-  CloudMesher cloudMesher;
-  Collection<Mesh> collMesh(result.getSize());
-  for (UnsignedInteger i = 0; i < result.getSize(); ++ i)
-    collMesh[i] = cloudMesher.build(result[i]);
-  return UnionMesher().build(collMesh);
-}
-
 Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
@@ -922,8 +889,8 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
   }
   else if (intersectionVerticesNumber > (dimension + 1))
   {
-    // fewer tets than delaunay with CloudMesher
-    result = VolumeMesher().build(ConvexHullMesher().build(intersectionVertices));
+    // V>d+1, decompose into several simplices
+    result = CloudMesher().build(intersectionVertices);
   }
   return result;
 }
@@ -1105,13 +1072,44 @@ Sample IntersectionMesher::buildConvexSample(const Collection<Sample> & coll) co
 // the last union of convexes obtained after visiting all cylinders is returned
 
 // Core logic for cylinder intersection, returning the convex decomposition
-Collection<Sample> IntersectionMesher::buildCylinderConvex(const Collection<Cylinder> & coll) const
+Mesh IntersectionMesher::buildCylinder(const Collection<Cylinder> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
   if (size == 0)
-    return Collection<Sample>(0);
+    return Mesh(Sample(0, 0));
 
-  // intersect all convex cylinders first
+  if (size >= 2)
+  {
+    const Indices & inj0 = coll[0].getInjection();
+    const Interval & ext0 = coll[0].getExtension();
+    const UnsignedInteger disc0 = coll[0].getDiscretization();
+    Bool allSame = coll[0].isConvex();
+    for (UnsignedInteger i = 1; i < size; ++ i)
+    {
+      if (!coll[i].isConvex()
+          || !(coll[i].getInjection() == inj0)
+          || !(coll[i].getExtension() == ext0)
+          || coll[i].getDiscretization() != disc0)
+      {
+        allSame = false;
+        break;
+      }
+    }
+    if (allSame)
+    {
+      Collection<Sample> baseSamples(size);
+      for (UnsignedInteger i = 0; i < size; ++ i)
+        baseSamples[i] = coll[i].getBase().getVertices();
+      const Sample baseIntersection(buildConvexSample(baseSamples));
+      if (baseIntersection.getSize() == 0)
+        return Mesh(Sample(0, coll[0].getDimension()));
+
+      const Mesh baseMesh = CloudMesher().build(baseIntersection);
+      const Cylinder resultCyl(baseMesh, ext0, inj0, disc0);
+      return CloudMesher().build(resultCyl.getVertices());
+    }
+  }
+
   Collection<Sample> unionCurrent;
   Indices nonConvex;
   for (UnsignedInteger i = 0; i < size; ++ i)
@@ -1125,83 +1123,182 @@ Collection<Sample> IntersectionMesher::buildCylinderConvex(const Collection<Cyli
   {
     const Sample convexIntersection(buildConvexSample(unionCurrent));
     if (!convexIntersection.getSize())
-      return Collection<Sample>(0);
+      return Mesh(convexIntersection);
     unionCurrent = {convexIntersection};
   }
 
-  // if there are only non-convex cylinders we must decompose the first one to initialize unionCurrent
-  ConvexDecompositionMesher convexDecompositionMesher;
-  convexDecompositionMesher.setUseSimplicesDecomposition(useSimplicesDecomposition_);
   const UnsignedInteger nonConvexSize = nonConvex.getSize();
+  Collection<Collection<Mesh>> nonConvexDecompositions(nonConvexSize);
+  {
+    ConvexDecompositionMesher convexDecompositionMesher;
+    convexDecompositionMesher.setUseSimplicesDecomposition(useSimplicesDecomposition_);
+    TBBImplementation::ParallelFor(0, nonConvexSize, [&](const TBBImplementation::BlockedRange<UnsignedInteger> & r)
+    {
+      ConvexDecompositionMesher localMesher;
+      localMesher.setUseSimplicesDecomposition(useSimplicesDecomposition_);
+      for (UnsignedInteger i = r.begin(); i != r.end(); ++ i)
+      {
+        const Cylinder cylinderI(coll[nonConvex[i]]);
+        nonConvexDecompositions[i] = localMesher.build(cylinderI.getBase());
+      }
+    });
+  }
+
+#ifdef OPENTURNS_HAVE_CDDLIB
+  std::vector<ScopedMatrixPtr> unionCurrentH;
+  {
+    const UnsignedInteger sz = unionCurrent.getSize();
+    unionCurrentH.reserve(sz);
+    for (UnsignedInteger k = 0; k < sz; ++ k)
+      unionCurrentH.emplace_back(ComputeHRepresentation(unionCurrent[k]));
+  }
+#endif
+
   UnsignedInteger startNonConvex = 0;
   if (nonConvexSize == size)
   {
-    // build decomposition of first non-convex cylinder
     const Cylinder cylinder0(coll[nonConvex[0]]);
-    const Collection<Mesh> baseDecomposition(convexDecompositionMesher.build(cylinder0.getBase()));
-
-    for (UnsignedInteger j = 0; j < baseDecomposition.getSize(); ++ j)
+    const Collection<Mesh>& baseDecomposition0 = nonConvexDecompositions[0];
+    const UnsignedInteger baseDecompositionSize0 = baseDecomposition0.getSize();
+    for (UnsignedInteger j = 0; j < baseDecompositionSize0; ++ j)
     {
-      const Cylinder cylinder0J(baseDecomposition[j],
+      const Cylinder cylinder0J(baseDecomposition0[j],
                                 cylinder0.getExtension(),
                                 cylinder0.getInjection(),
                                 cylinder0.getDiscretization());
       unionCurrent.add(cylinder0J.getVertices());
+#ifdef OPENTURNS_HAVE_CDDLIB
+      unionCurrentH.emplace_back(ComputeHRepresentation(cylinder0J.getVertices()));
+#endif
     }
-
-    // start at index 1
     startNonConvex = 1;
   }
 
-  // for each remaining (non-convex) cylinder i
   for (UnsignedInteger i = startNonConvex; i < nonConvexSize; ++ i)
   {
-    // build decomposition
     Collection<Sample> unionNext;
+#ifdef OPENTURNS_HAVE_CDDLIB
+    std::vector<ScopedMatrixPtr> nextH;
+#endif
     const Cylinder cylinderI(coll[nonConvex[i]]);
-    const Collection<Mesh> baseDecomposition(convexDecompositionMesher.build(cylinderI.getBase()));
-    for (UnsignedInteger j = 0; j < baseDecomposition.getSize(); ++ j)
+    const Collection<Mesh>& baseDecomposition = nonConvexDecompositions[i];
+    const UnsignedInteger baseDecompositionSize = baseDecomposition.getSize();
+#ifdef OPENTURNS_HAVE_CDDLIB
+    nextH.reserve(baseDecompositionSize);
+#endif
+    for (UnsignedInteger j = 0; j < baseDecompositionSize; ++ j)
     {
       const Cylinder cylinderIJ(baseDecomposition[j],
                                 cylinderI.getExtension(),
                                 cylinderI.getInjection(),
                                 cylinderI.getDiscretization());
-      unionNext.add(cylinderIJ.getVertices());
+      const Sample & verts = cylinderIJ.getVertices();
+      unionNext.add(verts);
+#ifdef OPENTURNS_HAVE_CDDLIB
+      nextH.emplace_back(ComputeHRepresentation(verts));
+#endif
     }
 
-    // build lists of intersections to compute
-    const UnsignedInteger toDoSize = unionCurrent.getSize() *  unionNext.getSize();
+    const UnsignedInteger blockSize = std::max(UnsignedInteger(1), ResourceMap::GetAsUnsignedInteger("IntersectionMesher-BlockSize"));
+    const UnsignedInteger toDoSize = unionCurrent.getSize() * unionNext.getSize();
+    const UnsignedInteger dimension = cylinderI.getDimension();
+    Collection<Sample> result(0);
+    std::vector<UnsignedInteger> candI, candJ;
+    static const UnsignedInteger SPATIAL_THRESHOLD = 50;
+    Bool filtered = false;
 
-    // loop over intersections
-    Collection<Sample> result(toDoSize);
-    const IntersectionMesherConvexSamplePolicy policy(*this, unionCurrent, unionNext, 0, result);
-    TBBImplementation::ParallelFor(0, toDoSize, policy);
+    if ((unionCurrent.getSize() > SPATIAL_THRESHOLD) && (unionNext.getSize() > SPATIAL_THRESHOLD))
+    {
+      filtered = true;
+      std::vector<SimplexAABB> currentAABB(unionCurrent.getSize());
+      for (UnsignedInteger j = 0; j < unionCurrent.getSize(); ++ j)
+      {
+        currentAABB[j].lower = unionCurrent[j].getMin();
+        currentAABB[j].upper = unionCurrent[j].getMax();
+      }
 
-    // prune empty intersections
-    unionCurrent.resize(0);
-    for (UnsignedInteger i0 = 0; i0 < result.getSize(); ++ i0)
-      if (result[i0].getSize())
-        unionCurrent.add(result[i0]);
+      std::vector<SimplexAABB> nextAABB(unionNext.getSize());
+      for (UnsignedInteger j = 0; j < unionNext.getSize(); ++ j)
+      {
+        nextAABB[j].lower = unionNext[j].getMin();
+        nextAABB[j].upper = unionNext[j].getMax();
+      }
 
-    // early exit if there are no non-empty intersections at this stage
+      UnsignedInteger targetPerDim = static_cast<UnsignedInteger>(
+          ceil(pow(static_cast<double>(unionNext.getSize()), 1.0 / dimension)));
+      if (targetPerDim < 4) targetPerDim = 4;
+      if (targetPerDim > 25) targetPerDim = 25;
+
+      candI.reserve(std::min(toDoSize, unionCurrent.getSize() * 128u));
+      candJ.reserve(std::min(toDoSize, unionCurrent.getSize() * 128u));
+
+      SimplexGrid grid(nextAABB, targetPerDim);
+
+      std::set<std::pair<UnsignedInteger, UnsignedInteger>> seen;
+      for (UnsignedInteger j = 0; j < unionCurrent.getSize(); ++ j)
+      {
+        grid.query(currentAABB[j], [&](UnsignedInteger k) {
+          if (AABBOverlap(currentAABB[j], nextAABB[k]) && seen.insert({j, k}).second)
+          {
+            candI.push_back(j);
+            candJ.push_back(k);
+          }
+        });
+      }
+    }
+
+    const UnsignedInteger effectiveToDo = filtered ? candI.size() : toDoSize;
+    Collection<Sample> resultChunk(std::min(blockSize, effectiveToDo));
+    for (UnsignedInteger done = 0; done < effectiveToDo; done += blockSize)
+    {
+      const UnsignedInteger actualBlockSize = std::min(blockSize, effectiveToDo - done);
+      resultChunk.resize(actualBlockSize);
+      if (!filtered)
+      {
+#ifdef OPENTURNS_HAVE_CDDLIB
+        const IntersectionMesherConvexSampleHMatrixPolicy policy(unionCurrentH, nextH, done, resultChunk, dimension);
+#else
+        const IntersectionMesherConvexSamplePolicy policy(*this, unionCurrent, unionNext, done, resultChunk);
+#endif
+        TBBImplementation::ParallelFor(0, actualBlockSize, policy);
+      }
+      else
+      {
+#ifdef OPENTURNS_HAVE_CDDLIB
+        const IntersectionMesherConvexSampleHMatrixFilteredPolicy policy(unionCurrentH, nextH, candI, candJ, done, resultChunk, dimension);
+#else
+        const IntersectionMesherConvexSampleFilteredPolicy policy(*this, unionCurrent, unionNext, candI, candJ, done, resultChunk);
+#endif
+        TBBImplementation::ParallelFor(0, actualBlockSize, policy);
+      }
+
+      for (UnsignedInteger i0 = 0; i0 < actualBlockSize; ++ i0)
+      {
+        Sample & sample = resultChunk[i0];
+        if (sample.getSize())
+          result.add(sample);
+      }
+    }
+
+    unionCurrent = result;
     if (!unionCurrent.getSize())
-      return Collection<Sample>(0);
-  } // for cylinder i
+      return Mesh(Sample(0, dimension));
 
-  return unionCurrent;
-}
-
-// intersect cylinders and assemble into a single mesh
-Mesh IntersectionMesher::buildCylinder(const Collection<Cylinder> & coll) const
-{
-  const SampleCollection convexPieces = buildCylinderConvex(coll);
-  if (!convexPieces.getSize())
-    return Mesh(Sample(0, coll.getSize() ? coll[0].getDimension() : 0));
+#ifdef OPENTURNS_HAVE_CDDLIB
+    unionCurrentH.clear();
+    {
+      const UnsignedInteger sz = unionCurrent.getSize();
+      unionCurrentH.reserve(sz);
+      for (UnsignedInteger k = 0; k < sz; ++ k)
+        unionCurrentH.emplace_back(ComputeHRepresentation(unionCurrent[k]));
+    }
+#endif
+  }
 
   CloudMesher cloudMesher;
-  Collection<Mesh> collMesh(convexPieces.getSize());
-  for (UnsignedInteger i = 0; i < convexPieces.getSize(); ++ i)
-    collMesh[i] = cloudMesher.build(convexPieces[i]);
+  Collection<Mesh> collMesh(unionCurrent.getSize());
+  for (UnsignedInteger i = 0; i < unionCurrent.getSize(); ++ i)
+    collMesh[i] = cloudMesher.build(unionCurrent[i]);
   return UnionMesher().build(collMesh);
 }
 

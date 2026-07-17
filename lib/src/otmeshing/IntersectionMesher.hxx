@@ -55,9 +55,6 @@ public:
   /** intersection */
   virtual OT::Mesh build(const MeshCollection & coll) const;
 
-  /** intersection of a mesh with pre-decomposed convex pieces */
-  virtual OT::Mesh buildWithConvexParts(const OT::Mesh & mesh, const SampleCollection & convexPieces) const;
-
   /** intersection of convexes */
   virtual OT::Mesh buildConvex(const MeshCollection & coll) const;
   virtual OT::Sample buildConvexSample(const SampleCollection & coll) const;
@@ -65,9 +62,6 @@ public:
 
   /** intersection of cylinders */
   virtual OT::Mesh buildCylinder(const CylinderCollection & coll) const;
-
-  /** intersection of cylinders returning convex decomposition */
-  virtual SampleCollection buildCylinderConvex(const CylinderCollection & coll) const;
 
   /** Recompression flag accessor */
   void setRecompress(const OT::Bool recompress);

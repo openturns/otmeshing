@@ -71,7 +71,7 @@ for c in [C_1, C_2, C_3]:
 
 # domain=cylinders intersection, keep them as list of convexes for later
 t0 = time()
-convexPiecesAllCylinders = algoInter.buildCylinderConvex([C_1, C_2, C_3])
+convexPiecesAllCylinders = [algoInter.buildConvexSample([c.getVertices() for c in [C_1, C_2, C_3]])]
 t1 = time()
 print(f"buildCylinderConvex t={t1 - t0} s")
 print(f"convexPiecesAllCylinders size={len(convexPiecesAllCylinders)}")
@@ -102,6 +102,6 @@ print(f"meshConvexParts t={t1 - t0} s")
 # (every edge must be shared by exactly two triangles with opposite orientation)
 # else CoACD would throw "The mesh is not a 2-manifold!".
 t0 = time()
-globalMesh = algoInter.buildWithConvexParts(mesh, convexPiecesAllCylinders)
+globalMesh = algoInter.buildConvex([mesh] + [otm.CloudMesher().build(c) for c in convexPiecesAllCylinders])
 t1 = time()
 print(f"build t={t1 - t0} s")

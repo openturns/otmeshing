@@ -187,8 +187,8 @@ print(f"t={t1 - t0} s")
 # (every edge must be shared by exactly two triangles with opposite orientation)
 # else CoACD would throw "The mesh is not a 2-manifold!".
 t0 = time()
-convexPiecesAllCylinders = algoInter.buildCylinderConvex([C_1, C_2, C_3])
-globalMesh = algoInter.buildWithConvexParts(mesh, convexPiecesAllCylinders)
+convexPiecesAllCylinders = [algoInter.buildConvexSample([c.getVertices() for c in [C_1, C_2, C_3]])]
+globalMesh = algoInter.buildConvex([mesh] + [otm.CloudMesher().build(c) for c in convexPiecesAllCylinders])
 t1 = time()
 ot.BoundaryMesher().build(globalMesh).exportToVTKFile("global.vtk")
 print(f"t={t1 - t0} s")
