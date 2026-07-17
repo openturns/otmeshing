@@ -21,6 +21,7 @@
 #include <unordered_map>
 #include <set>
 
+#include <openturns/IntervalMesher.hxx>
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
 #include <openturns/TBBImplementation.hxx>
@@ -556,6 +557,115 @@ private:
   std::unordered_map<UnsignedInteger, std::vector<UnsignedInteger>> cells_;
 };
 
+static UnsignedInteger ComputeFactorial(const UnsignedInteger n)
+{
+  UnsignedInteger result = 1;
+  for (UnsignedInteger i = 2; i <= n; ++ i) result *= i;
+  return result;
+}
+
+static Bool IsTensorProductGrid(const Mesh & mesh)
+{
+  const UnsignedInteger dimension = mesh.getDimension();
+  const Sample & verts = mesh.getVertices();
+  const UnsignedInteger vertexCount = verts.getSize();
+  const UnsignedInteger simplicesNumber = mesh.getSimplicesNumber();
+  const UnsignedInteger factor = ComputeFactorial(dimension);
+
+  if (simplicesNumber % factor != 0)
+    return false;
+
+  const Point lower = verts.getMin();
+  const Point upper = verts.getMax();
+
+  Indices nk(dimension);
+  UnsignedInteger stride = 1;
+  for (UnsignedInteger k = 0; k < dimension; ++ k)
+  {
+    if (stride >= vertexCount)
+      return false;
+    const Scalar stepK = verts(stride, k) - verts(0, k);
+    if (!(stepK > 0.0))
+      return false;
+    nk[k] = std::max(static_cast<UnsignedInteger>(1),
+        static_cast<UnsignedInteger>(round((upper[k] - lower[k]) / stepK)));
+    stride *= (nk[k] + 1);
+  }
+  if (stride != vertexCount)
+    return false;
+
+  UnsignedInteger expectedSimplices = factor;
+  for (UnsignedInteger k = 0; k < dimension; ++ k)
+    expectedSimplices *= nk[k];
+  return simplicesNumber == expectedSimplices;
+}
+
+static Bool TryBuildIntervalIntersection(const Collection<Mesh> & coll,
+    Mesh & result)
+{
+  const UnsignedInteger size = coll.getSize();
+  const UnsignedInteger dimension = coll[0].getDimension();
+
+  for (UnsignedInteger i = 0; i < size; ++ i)
+    if (!IsTensorProductGrid(coll[i]))
+      return false;
+
+  const Sample & verts0 = coll[0].getVertices();
+  Point interLower = verts0.getMin();
+  Point interUpper = verts0.getMax();
+  for (UnsignedInteger i = 1; i < size; ++ i)
+  {
+    const Sample & verts = coll[i].getVertices();
+    const Point lower = verts.getMin();
+    const Point upper = verts.getMax();
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+    {
+      if (lower[k] > interLower[k]) interLower[k] = lower[k];
+      if (upper[k] < interUpper[k]) interUpper[k] = upper[k];
+    }
+  }
+
+  for (UnsignedInteger k = 0; k < dimension; ++ k)
+    if (!(interLower[k] < interUpper[k]))
+    {
+      result = Mesh(Sample(0, dimension));
+      return true;
+    }
+
+  const UnsignedInteger vertexCount = verts0.getSize();
+  const Point lower0 = verts0.getMin();
+  const Point upper0 = verts0.getMax();
+  Indices nkOriginal(dimension);
+  UnsignedInteger stride = 1;
+  for (UnsignedInteger k = 0; k < dimension; ++ k)
+  {
+    if (stride >= vertexCount)
+      return false;
+    const Scalar stepK = verts0(stride, k) - verts0(0, k);
+    if (!(stepK > 0.0))
+      return false;
+    nkOriginal[k] = std::max(static_cast<UnsignedInteger>(1),
+        static_cast<UnsignedInteger>(
+            round((upper0[k] - lower0[k]) / stepK)));
+    stride *= (nkOriginal[k] + 1);
+  }
+  if (stride != vertexCount)
+    return false;
+
+  Indices resolution(dimension);
+  for (UnsignedInteger k = 0; k < dimension; ++ k)
+  {
+    const Scalar stepK = (upper0[k] - lower0[k]) / nkOriginal[k];
+    resolution[k] = std::max(static_cast<UnsignedInteger>(1),
+        static_cast<UnsignedInteger>(
+            round((interUpper[k] - interLower[k]) / stepK)));
+  }
+
+  IntervalMesher intervalMesher(resolution);
+  result = intervalMesher.build(Interval(interLower, interUpper));
+  return true;
+}
+
 Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
@@ -565,6 +675,12 @@ Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
     return coll[0];
 
   const UnsignedInteger dimension = coll[0].getDimension();
+
+  {
+    Mesh result;
+    if (TryBuildIntervalIntersection(coll, result))
+      return result;
+  }
 
   Collection<Sample> unionVertices;
   UnsignedInteger unionSize = 0;
