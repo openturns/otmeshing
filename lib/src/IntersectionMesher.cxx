@@ -98,7 +98,7 @@ struct IntersectionMesherConvexSamplePolicy
     {
       const UnsignedInteger i = (n + done_) % stride_;
       const UnsignedInteger j = (n + done_) / stride_;
-      output_[n] = intersectionMesher_.buildConvexSample({input1_[i], input2_[j]});
+      output_[n] = intersectionMesher_.buildConvexSample(input1_[i], input2_[j]);
     }
   }
 };
@@ -314,6 +314,85 @@ struct ScopedPolyhedraPtr
   void reset(dd_PolyhedraPtr p = nullptr) { if (ptr_) dd_FreePolyhedra(ptr_); ptr_ = p; }
   dd_PolyhedraPtr operator->() const { return ptr_; }
 };
+
+static dd_MatrixPtr ComputeHRepresentation(const Sample & vertices)
+{
+  const UnsignedInteger nv = vertices.getSize();
+  const UnsignedInteger dimension = vertices.getDimension();
+  dd_ErrorType err = dd_NoError;
+
+  ScopedMatrixPtr m(dd_CreateMatrix(nv, dimension + 1));
+  dd_SetMatrixRepresentationType(m.get(), dd_Generator);
+  for (UnsignedInteger i = 0; i < nv; ++ i)
+  {
+    dd_set_d(m->matrix[i][0], 1.0);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      dd_set_d(m->matrix[i][k + 1], vertices(i, k));
+  }
+
+  ScopedPolyhedraPtr p(dd_DDMatrix2Poly(m.get(), &err));
+  if (err != dd_NoError)
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed: " << cdd_error_to_string(err);
+
+  return dd_CopyInequalities(p.get());
+}
+
+static dd_MatrixPtr ComputeHRepresentation(const Sample & allVertices,
+    const IndicesCollection & simplices,
+    const UnsignedInteger simplexIndex)
+{
+  const UnsignedInteger dimension = allVertices.getDimension();
+  const UnsignedInteger nv = dimension + 1;
+  dd_ErrorType err = dd_NoError;
+
+  ScopedMatrixPtr m(dd_CreateMatrix(nv, dimension + 1));
+  dd_SetMatrixRepresentationType(m.get(), dd_Generator);
+  for (UnsignedInteger i = 0; i < nv; ++ i)
+  {
+    dd_set_d(m->matrix[i][0], 1.0);
+    const UnsignedInteger vertexIndex = simplices(simplexIndex, i);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      dd_set_d(m->matrix[i][k + 1], allVertices(vertexIndex, k));
+  }
+
+  ScopedPolyhedraPtr p(dd_DDMatrix2Poly(m.get(), &err));
+  if (err != dd_NoError)
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed: " << cdd_error_to_string(err);
+
+  return dd_CopyInequalities(p.get());
+}
+
+static Sample IntersectFromH(dd_MatrixPtr h1, dd_MatrixPtr h2, const UnsignedInteger dimension)
+{
+  dd_ErrorType err = dd_NoError;
+
+  ScopedMatrixPtr intersectionH(dd_CreateMatrix(0, dimension + 1));
+  dd_SetMatrixRepresentationType(intersectionH.get(), dd_Inequality);
+
+  dd_MatrixAppendTo(intersectionH.ptrAddr(), h1);
+  dd_MatrixAppendTo(intersectionH.ptrAddr(), h2);
+
+  ScopedPolyhedraPtr intersectionV(dd_DDMatrix2Poly(intersectionH.get(), &err));
+  if (err != dd_NoError)
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for intersection: " << cdd_error_to_string(err);
+
+  ScopedMatrixPtr gen(dd_CopyGenerators(intersectionV.get()));
+
+  Sample result(0, dimension);
+  const UnsignedInteger intersectionVerticesNumber = gen->rowsize;
+  if (intersectionVerticesNumber >= (dimension + 1))
+  {
+    result = Sample(intersectionVerticesNumber, dimension);
+    for (UnsignedInteger i = 0; i < intersectionVerticesNumber; ++ i)
+    {
+      if (dd_get_d(gen->matrix[i][0]) != 1.0)
+        throw InternalException(HERE) << "assumed only points, no rays";
+      for (UnsignedInteger j = 0; j < dimension; ++ j)
+        result(i, j) = dd_get_d(gen->matrix[i][j + 1]);
+    }
+  }
+  return result;
+}
 #endif
 
 
@@ -347,6 +426,76 @@ Mesh IntersectionMesher::buildConvex(const Collection<Mesh> & coll) const
     result = VolumeMesher().build(ConvexHullMesher().build(intersectionVertices));
   }
   return result;
+}
+
+
+Sample IntersectionMesher::buildConvexSample(const Sample & s1, const Sample & s2) const
+{
+  const UnsignedInteger dimension = s1.getDimension();
+  if (s2.getDimension() != dimension)
+    throw InvalidArgumentException(HERE) << "IntersectionMesher expected vertices of same dimension";
+
+  Sample result(0, dimension);
+  const UnsignedInteger nv1 = s1.getSize();
+  const UnsignedInteger nv2 = s2.getSize();
+
+  Point min1(dimension, SpecFunc::Infinity);
+  Point max1(dimension, -SpecFunc::Infinity);
+  for (UnsignedInteger i = 0; i < nv1; ++ i)
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+    {
+      const Scalar val = s1(i, k);
+      if (val < min1[k]) min1[k] = val;
+      if (val > max1[k]) max1[k] = val;
+    }
+
+  Point min2(dimension, SpecFunc::Infinity);
+  Point max2(dimension, -SpecFunc::Infinity);
+  for (UnsignedInteger i = 0; i < nv2; ++ i)
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+    {
+      const Scalar val = s2(i, k);
+      if (val < min2[k]) min2[k] = val;
+      if (val > max2[k]) max2[k] = val;
+    }
+
+  for (UnsignedInteger k = 0; k < dimension; ++ k)
+    if (std::max(min1[k], min2[k]) >= std::min(max1[k], max2[k]))
+      return result;
+
+#ifdef OPENTURNS_HAVE_CDDLIB
+  dd_ErrorType err = dd_NoError;
+
+  ScopedMatrixPtr m1(dd_CreateMatrix(nv1, dimension + 1));
+  dd_SetMatrixRepresentationType(m1.get(), dd_Generator);
+  for (UnsignedInteger i1 = 0; i1 < nv1; ++ i1)
+  {
+    dd_set_d(m1->matrix[i1][0], 1.0);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      dd_set_d(m1->matrix[i1][k + 1], s1(i1, k));
+  }
+  ScopedPolyhedraPtr p1(dd_DDMatrix2Poly(m1.get(), &err));
+  if (err != dd_NoError)
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for convex 1: " << cdd_error_to_string(err);
+  ScopedMatrixPtr h1(dd_CopyInequalities(p1.get()));
+
+  ScopedMatrixPtr m2(dd_CreateMatrix(nv2, dimension + 1));
+  dd_SetMatrixRepresentationType(m2.get(), dd_Generator);
+  for (UnsignedInteger i2 = 0; i2 < nv2; ++ i2)
+  {
+    dd_set_d(m2->matrix[i2][0], 1.0);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      dd_set_d(m2->matrix[i2][k + 1], s2(i2, k));
+  }
+  ScopedPolyhedraPtr p2(dd_DDMatrix2Poly(m2.get(), &err));
+  if (err != dd_NoError)
+    throw InternalException(HERE) << "dd_DDMatrix2Poly failed for convex 2: " << cdd_error_to_string(err);
+  ScopedMatrixPtr h2(dd_CopyInequalities(p2.get()));
+
+  return IntersectFromH(h1.get(), h2.get(), dimension);
+#else
+  throw NotYetImplementedException(HERE) << "No cddlib support";
+#endif
 }
 
 

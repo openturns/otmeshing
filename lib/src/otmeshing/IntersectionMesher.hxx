@@ -61,6 +61,7 @@ public:
   /** intersection of convexes */
   virtual OT::Mesh buildConvex(const MeshCollection & coll) const;
   virtual OT::Sample buildConvexSample(const SampleCollection & coll) const;
+  OT::Sample buildConvexSample(const OT::Sample & s1, const OT::Sample & s2) const;
 
   /** intersection of cylinders */
   virtual OT::Mesh buildCylinder(const CylinderCollection & coll) const;
