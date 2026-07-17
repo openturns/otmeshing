@@ -1008,7 +1008,7 @@ Sample IntersectionMesher::buildConvexSample(const Collection<Sample> & coll) co
   }
 
   const UnsignedInteger remainingSize = remainingIndices.getSize();
-  if (remainingSize == 1)
+  if (remainingSize < size)
     return result;
 
 #ifdef OPENTURNS_HAVE_CDDLIB
