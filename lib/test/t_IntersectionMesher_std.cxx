@@ -137,7 +137,44 @@ int main()
       throw TestFailed(OSS() << "Expected at least 3 vertices");
   }
 
-  // 10. buildConvex empty / single / self
+  // 10. buildConvexSample two-argument overload
+  {
+    Sample s1(0, 2);
+    s1.add(Point({0.0, 0.0}));
+    s1.add(Point({1.0, 0.0}));
+    s1.add(Point({1.0, 1.0}));
+    s1.add(Point({0.0, 1.0}));
+    Sample s2(0, 2);
+    s2.add(Point({0.5, 0.5}));
+    s2.add(Point({1.5, 0.5}));
+    s2.add(Point({1.5, 1.5}));
+    s2.add(Point({0.5, 1.5}));
+    const Sample result(mesher.buildConvexSample(s1, s2));
+    std::cout << "buildConvexSample two-arg: " << result << std::endl;
+    if (!(result.getSize() >= 3))
+      throw TestFailed(OSS() << "Expected at least 3 vertices");
+  }
+
+  // 11. buildConvexSample dimension mismatch should throw
+  {
+    Sample s1(0, 2);
+    s1.add(Point({0.0, 0.0}));
+    s1.add(Point({1.0, 0.0}));
+    Sample s2(0, 3);
+    s2.add(Point({0.0, 0.0, 0.0}));
+    s2.add(Point({1.0, 0.0, 0.0}));
+    try
+    {
+      mesher.buildConvexSample(s1, s2);
+      throw TestFailed(OSS() << "Expected InvalidArgumentException");
+    }
+    catch (const InvalidArgumentException &)
+    {
+      std::cout << "Dimension mismatch correctly raised for buildConvexSample" << std::endl;
+    }
+  }
+
+  // 12. buildConvex empty / single / self
   {
     const Mesh empty(mesher.buildConvex(MeshCollection()));
     assert_equal(empty.getDimension(), 0UL);
@@ -150,7 +187,7 @@ int main()
     assert_almost_equal(self.getVolume(), mesh.getVolume());
   }
 
-  // 11. buildConvexSample empty / single collections
+  // 13. buildConvexSample empty / single collections
   {
     const Sample empty(mesher.buildConvexSample(SampleCollection()));
     assert_equal(empty.getSize(), 0UL);
@@ -164,7 +201,7 @@ int main()
     assert_equal(single.getSize(), s1.getSize());
   }
 
-  // 12. buildCylinder: convex cylinder intersection (Steinmetz solid)
+  // 14. buildCylinder: convex cylinder intersection (Steinmetz solid)
   {
     const UnsignedInteger nTheta = 32;
     const Scalar R = 2.0;
@@ -186,7 +223,7 @@ int main()
     assert_almost_equal(inter.getVolume(), 16.0 / 3.0 * R * R * R, 2e-1);
   }
 
-  // 13. buildCylinder: non-convex cylinder intersection
+  // 15. buildCylinder: non-convex cylinder intersection
   {
     const UnsignedInteger nTheta = 32;
     const Scalar R = 2.0;
@@ -213,7 +250,7 @@ int main()
     assert_almost_equal(inter.getVolume(), 53.4976, 1e-2);
   }
 
-  // 14. buildCylinder: disjoint cylinders -> empty
+  // 16. buildCylinder: disjoint cylinders -> empty
   {
     const Mesh disc(IntervalMesher(Indices(2, 2)).build(Interval(Point({-20.0, -20.0}), Point({-10.0, -10.0}))));
     const Cylinder cyl(disc, Interval(Point({-50.0}), Point({-40.0})), Indices({2}), 2);
@@ -223,7 +260,7 @@ int main()
     assert_equal(inter.getVerticesNumber(), 0UL);
   }
 
-  // 15. buildCylinder: self-intersection
+  // 17. buildCylinder: self-intersection
   {
     const Mesh disc(IntervalMesher(Indices(2, 2)).build(Interval(Point({-1.0, -1.0}), Point({1.0, 1.0}))));
     const Cylinder cyl(disc, Interval(Point({-1.0}), Point({1.0})), Indices({2}), 2);
@@ -233,7 +270,7 @@ int main()
     assert_almost_equal(inter.getVolume(), expected.getVolume());
   }
 
-  // 16. Recompress flag
+  // 18. Recompress flag
   {
     IntersectionMesher m;
     assert_equal(m.getRecompress(), true);
@@ -243,7 +280,7 @@ int main()
     assert_equal(m.getRecompress(), true);
   }
 
-  // 17. UseSimplicesDecomposition flag
+  // 19. UseSimplicesDecomposition flag
   {
     IntersectionMesher m;
     assert_equal(m.getUseSimplicesDecomposition(), true);
@@ -253,7 +290,7 @@ int main()
     assert_equal(m.getUseSimplicesDecomposition(), true);
   }
 
-  // 18. Save/Load
+  // 20. Save/Load
   {
     const String studyFile("t_IntersectionMesher_std.xml");
     IntersectionMesher m1;
