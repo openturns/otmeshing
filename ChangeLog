@@ -1,3 +1,9 @@
+= 0.2 release (2026-07-28)
+
+* CoACD approximate convex decomposition
+* Enable artitrary precision arithmetics in IntersectionMesher
+* Add VolumeMesher
+
 = 0.1 release (2026-04-01)
 
 Initial release
