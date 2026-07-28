@@ -1,5 +1,5 @@
 %feature("docstring") OTMESHING::VolumeMesher
-"Build a volume mesh from a surface mesh.
+"Build a volume mesh from a surface mesh associated to a convex volume.
 
 Tetrahedralizes a closed triangular surface mesh by creating a fan of
 tetrahedra from an apex vertex to each boundary triangle.
@@ -13,7 +13,7 @@ tetrahedra from an apex vertex to each boundary triangle.
 Parameters
 ----------
 surface : :class:`~openturns.Mesh`
-    A surface mesh (triangles in dimension 3).
+    A surface mesh (triangles in dimension 3) associated to a convex volume.
 
 Returns
 -------

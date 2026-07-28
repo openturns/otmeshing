@@ -73,6 +73,8 @@ Mesh VolumeMesher::build(const Mesh & surface) const
     throw InvalidArgumentException(HERE) << "VolumeMesher requires a surface mesh (intrinsic dimension = "
                                          << (dimension - 1) << "), got intrinsic dimension "
                                          << surface.getIntrinsicDimension();
+  if (!surface.isConvex())
+    throw InvalidArgumentException(HERE) << "VolumeMesher requires a surface mesh associated to a convex volume";
 
   const UnsignedInteger nbVertices = surface.getVerticesNumber();
   if (nbVertices < dimension + 1)
@@ -171,6 +173,7 @@ Mesh VolumeMesher::build(const Mesh & surface) const
 
   Mesh result(verticesCompact, IndicesCollection(simplexCollCompact));
   result.fixOrientation();
+  result.setIsConvex(true);
   return result;
 }
 
