@@ -32,6 +32,7 @@ assert hull.getVerticesNumber() == 2
 assert hull.getSimplicesNumber() == 1
 ott.assert_almost_equal(hull.getVolume(), 1.0)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 4. 1D: many collinear points -> hull is [min, max]
 p = ot.Sample([[0.5], [1.5], [2.0], [3.0], [6.0]])
@@ -40,6 +41,7 @@ assert hull.getVerticesNumber() == 2
 assert hull.getSimplicesNumber() == 1
 ott.assert_almost_equal(hull.getVolume(), 5.5)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 5. 2D: triangle
 p = ot.Sample([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
@@ -50,6 +52,7 @@ assert hull.getVerticesNumber() == 3
 assert hull.getSimplicesNumber() == 3
 ott.assert_almost_equal(hull.getVolume(), 2.0 + math.sqrt(2.0))
 assert hull.isValid()
+assert hull.isConvex()
 
 # 6. 2D: square -- all 4 vertices on hull
 p = ot.Sample([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
@@ -60,6 +63,7 @@ assert hull.getVerticesNumber() == 4
 assert hull.getSimplicesNumber() == 4
 ott.assert_almost_equal(hull.getVolume(), 4.0)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 7. 2D: square with interior points -> hull unchanged
 p = ot.Sample(
@@ -70,6 +74,7 @@ assert hull.getVerticesNumber() == 4
 assert hull.getSimplicesNumber() == 4
 ott.assert_almost_equal(hull.getVolume(), 4.0)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 8. 3D: tetrahedron -- all 4 vertices on hull
 p = ot.Sample([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
@@ -81,6 +86,7 @@ assert hull.getSimplicesNumber() == 4
 # 4 triangular faces: areas are 0.5, 0.5, 0.5, sqrt(3)/2 ~= 0.8660
 ott.assert_almost_equal(hull.getVolume(), 1.5 + 0.5 * math.sqrt(3.0))
 assert hull.isValid()
+assert hull.isConvex()
 
 # 9. 3D: cube -- critical test for Bug 1 (triggers "Qt" centroid in Qhull)
 p = ot.Sample(
@@ -104,6 +110,7 @@ assert hull.getVerticesNumber() >= 8
 assert hull.getSimplicesNumber() == 12
 ott.assert_almost_equal(hull.getVolume(), 6.0)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 10. 3D: cube with interior point -> hull vertices unchanged
 p.add(ot.Point([0.5, 0.5, 0.5]))
@@ -129,6 +136,7 @@ assert hull.getVerticesNumber() == 5
 assert hull.getSimplicesNumber() == 5
 ott.assert_almost_equal(hull.getVolume(), 1.0)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 12. 4D: hypercube (16 vertices)
 p = ot.Box([0] * 4).generate()
@@ -138,6 +146,7 @@ assert hull.getIntrinsicDimension() == 3
 assert hull.getVerticesNumber() >= 16
 ott.assert_almost_equal(hull.getVolume(), 8.0)
 assert hull.isValid()
+assert hull.isConvex()
 
 # 13. reusing the same mesher for multiple builds
 hull1 = mesher.build(ot.Sample([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]))

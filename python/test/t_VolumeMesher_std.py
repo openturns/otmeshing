@@ -31,6 +31,7 @@ mesher.setApexStrategy(otm.VolumeMesher.CENTROID)
 vol = mesher.build(tetra_surface)
 assert vol.getDimension() == 3
 assert vol.isValid()
+assert vol.isConvex()
 ott.assert_almost_equal(vol.getVolume(), 1.0 / 6.0, 1e-3, 1e-3)
 
 # 3. tetrahedron surface -> FIRST_VERTEX
@@ -38,6 +39,7 @@ mesher.setApexStrategy(otm.VolumeMesher.FIRST_VERTEX)
 vol_first = mesher.build(tetra_surface)
 assert vol_first.getDimension() == 3
 assert vol_first.isValid()
+assert vol.isConvex()
 ott.assert_almost_equal(vol_first.getVolume(), 1.0 / 6.0, 1e-3, 1e-3)
 
 # 4. unit cube surface -> CENTROID
@@ -48,6 +50,7 @@ mesher.setApexStrategy(otm.VolumeMesher.CENTROID)
 cube_vol = mesher.build(cube_surface)
 assert cube_vol.getDimension() == 3
 assert cube_vol.isValid()
+assert cube_vol.isConvex()
 ott.assert_almost_equal(cube_vol.getVolume(), 1.0, 1e-3, 1e-3)
 
 # 5. both strategies give same volume
@@ -60,10 +63,12 @@ ott.assert_almost_equal(vol_c.getVolume(), vol_f.getVolume(), 1e-3, 1e-3)
 # 6. volume mesh -> surface (via BoundaryMesher) -> volume (round-trip)
 volume_mesh = otm.CloudMesher().build(tetra_pts)
 surface_from_volume = ot.BoundaryMesher().build(volume_mesh)
+surface_from_volume.setIsConvex(volume_mesh.isConvex())  # TODO: drop for OT 1.28
 mesher.setApexStrategy(otm.VolumeMesher.CENTROID)
 roundtrip_vol = mesher.build(surface_from_volume)
 assert roundtrip_vol.getDimension() == 3
 assert roundtrip_vol.isValid()
+assert roundtrip_vol.isConvex()
 ott.assert_almost_equal(roundtrip_vol.getVolume(), 1.0 / 6.0, 1e-3, 1e-3)
 
 # 7. 2D triangle surface -> volume (arbitrary dimension support)
@@ -72,6 +77,7 @@ surface2d = hull_mesher.build(pts2d)
 vol2d = mesher.build(surface2d)
 assert vol2d.getDimension() == 2
 assert vol2d.isValid()
+assert vol2d.isConvex()
 ott.assert_almost_equal(vol2d.getVolume(), 0.5, 1e-3, 1e-3)
 
 # 8. reuse mesher

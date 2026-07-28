@@ -126,7 +126,9 @@ Mesh buildConvexHull(const Sample & points)
     }
   }
 
-  return Mesh(vertices, simplices);
+  Mesh result(vertices, simplices);
+  result.setIsConvex(true);
+  return result;
 }
 
 
@@ -146,7 +148,9 @@ Mesh ConvexHullMesher::build(const Sample & points) const
     vertices.add(points.getMax());
     IndicesCollection simplices(1, dimension + 1);
     simplices(0, 1) = 1;
-    return Mesh(vertices, simplices);
+    Mesh result(vertices, simplices);
+    result.setIsConvex(true);
+    return result;
   }
 #ifdef OPENTURNS_HAVE_QHULL
   QHULL_LIB_CHECK
@@ -223,7 +227,9 @@ Mesh ConvexHullMesher::build(const Sample & points) const
   if (curlong || totlong)
     throw InternalException(HERE) << "qh_memfreeshort: did not free " << totlong <<" bytes (" << curlong << " blocks)";
 
-  return Mesh(vertices, IndicesCollection(simplexColl));
+  Mesh result(vertices, IndicesCollection(simplexColl));
+  result.setIsConvex(true);
+  return result;
 #else
   // CGAL Triangulation requires the input to span all dimension dimensions.
   if (dimension > 1)

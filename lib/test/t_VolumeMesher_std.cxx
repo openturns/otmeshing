@@ -137,8 +137,8 @@ int main()
     tetra_pts.add(Point({0.0, 1.0, 0.0}));
     tetra_pts.add(Point({0.0, 0.0, 1.0}));
     const Mesh volume_mesh(CloudMesher().build(tetra_pts));
-    const Mesh surface_from_volume(BoundaryMesher().build(volume_mesh));
-
+    Mesh surface_from_volume(BoundaryMesher().build(volume_mesh));
+    surface_from_volume.setIsConvex(volume_mesh.isConvex());  // TODO: drop for OT 1.28
     mesher.setApexStrategy(VolumeMesher::CENTROID);
     const Mesh roundtrip_vol(mesher.build(surface_from_volume));
     std::cout << "round-trip: " << roundtrip_vol << std::endl;
