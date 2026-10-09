@@ -109,6 +109,23 @@ static Sample ReduceConvexCloud(const Sample & cloud)
   }
 }
 
+// Reset-proof key read: ResourceMap::Reset() (run e.g. by Sphinx plot
+// pre-code before every figure) wipes module runtime keys, whose static
+// initializers run only once at load. Fall back to the registered default
+// instead of throwing; core keys are unaffected (restored from defaults).
+static UnsignedInteger GetUIntKey(const char * key,
+                                  const UnsignedInteger fallback)
+{
+  try
+  {
+    return ResourceMap::GetAsUnsignedInteger(key);
+  }
+  catch (const Exception &)
+  {
+    return fallback;
+  }
+}
+
 // Forward declaration (defined after buildConvex)
 static Mesh AssembleConvexPieces(const Collection<Sample> & pieces,
                                  const UnsignedInteger dimension);
@@ -133,6 +150,100 @@ struct IntersectionMesherConvexTreePolicy
       output_[n] = intersectionMesher_.buildConvexSample({input_[2 * n], input_[2 * n + 1]});
   }
 };
+
+// Support point of a vertex cloud along a direction (exact arithmetic)
+static Point SupportPoint(const Sample & cloud,
+                          const Point & direction)
+{
+  const UnsignedInteger size = cloud.getSize();
+  UnsignedInteger best = 0;
+  Scalar bestValue = cloud(0, 0) * direction[0];
+  for (UnsignedInteger k = 1; k < cloud.getDimension(); ++ k)
+    bestValue += cloud(0, k) * direction[k];
+  for (UnsignedInteger i = 1; i < size; ++ i)
+  {
+    Scalar value = cloud(i, 0) * direction[0];
+    for (UnsignedInteger k = 1; k < cloud.getDimension(); ++ k)
+      value += cloud(i, k) * direction[k];
+    if (value > bestValue)
+    {
+      bestValue = value;
+      best = i;
+    }
+  }
+  return cloud[best];
+}
+
+// Conservative disjointness witness for two convex clouds: a direction d
+// with max(A.d) < min(B.d) proves disjointness (strict separation, exact
+// floating-point support evaluations with tolerance margin). Never wrongly
+// prunes: unproven pairs fall through to the exact kernel. Heuristic
+// descent from the centroid difference, bounded iterations.
+static Bool FindSeparatingDirection(const Sample & cloudA,
+                                    const Sample & cloudB)
+{
+  const UnsignedInteger dimension = cloudA.getDimension();
+  const Scalar scale = (cloudA.computeRange().norm() + cloudB.computeRange().norm()) / 2.0;
+  const Scalar tolerance = std::sqrt(SpecFunc::Precision) * (1.0 + scale);
+  Point direction(dimension);
+  {
+    const Point centerA(cloudA.computeMean());
+    const Point centerB(cloudB.computeMean());
+    Scalar norm = 0.0;
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+    {
+      direction[k] = centerA[k] - centerB[k];
+      norm += direction[k] * direction[k];
+    }
+    if (!(norm > 0.0))
+      return false;
+    norm = std::sqrt(norm);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      direction[k] /= norm;
+  }
+  for (UnsignedInteger iteration = 0; iteration < 32; ++ iteration)
+  {
+    const Point supportA(SupportPoint(cloudA, direction));
+    Point opposite(dimension);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      opposite[k] = -direction[k];
+    const Point supportB(SupportPoint(cloudB, opposite));
+    // gap along d: supportA.d - supportB.d < 0 proves separation
+    Scalar gap = 0.0;
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      gap += (supportA[k] - supportB[k]) * direction[k];
+    if (gap < -tolerance)
+      return true;
+    // subgradient descent on the sphere
+    Scalar gradNorm = 0.0;
+    Point step(dimension);
+    Scalar alignment = 0.0;
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+    {
+      step[k] = supportA[k] - supportB[k];
+      alignment += step[k] * direction[k];
+    }
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+    {
+      step[k] -= alignment * direction[k];
+      gradNorm += step[k] * step[k];
+    }
+    if (!(gradNorm > 0.0))
+      return false;
+    gradNorm = std::sqrt(gradNorm);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      direction[k] -= (0.5 / gradNorm) * step[k];
+    Scalar norm = 0.0;
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      norm += direction[k] * direction[k];
+    if (!(norm > 0.0))
+      return false;
+    norm = std::sqrt(norm);
+    for (UnsignedInteger k = 0; k < dimension; ++ k)
+      direction[k] /= norm;
+  }
+  return false;
+}
 
 // Bounding boxes of non-empty vertex clouds (caller-filtered)
 static void ComputeCloudBounds(const Collection<Sample> & pieces,
@@ -395,8 +506,8 @@ static Collection<Sample> IntersectPieceLists(const IntersectionMesher & mesher,
   const Collection<Sample> & kept1 = dense1;
   const Collection<Sample> & kept2 = dense2;
   const UnsignedInteger toDoSize = kept1.getSize() * kept2.getSize();
-  const UnsignedInteger blockSize = ResourceMap::GetAsUnsignedInteger("IntersectionMesher-BlockSize");
-  const UnsignedInteger gridThreshold = ResourceMap::GetAsUnsignedInteger("IntersectionMesher-GridThreshold");
+  const UnsignedInteger blockSize = GetUIntKey("IntersectionMesher-BlockSize", 1 << 16);
+  const UnsignedInteger gridThreshold = GetUIntKey("IntersectionMesher-GridThreshold", 1 << 10);
   if (toDoSize > gridThreshold)
   {
     const Collection<Indices> pairs(ComputeCandidatePairs(kept1, kept2));
@@ -663,6 +774,13 @@ Sample IntersectionMesher::buildConvexSample(const Collection<Sample> & coll) co
   const UnsignedInteger remainingSize = remainingIndices.getSize();
   if (remainingSize == 1)
     return result;
+  // Conservative exact-disjointness filter: pairwise separating directions
+  // skip the exact enumeration for well-separated clouds (never prunes
+  // wrongly; unproven pairs fall through). Runs on bbox survivors only.
+  for (UnsignedInteger a = 0; a < remainingSize; ++ a)
+    for (UnsignedInteger b = a + 1; b < remainingSize; ++ b)
+      if (FindSeparatingDirection(coll[remainingIndices[a]], coll[remainingIndices[b]]))
+        return Sample(0, dimension);
 
 #ifdef OPENTURNS_HAVE_CDDLIB
 

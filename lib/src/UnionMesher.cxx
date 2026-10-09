@@ -178,6 +178,21 @@ Mesh UnionMesher::CompressMesh(const Mesh & mesh)
 
 namespace
 {
+// Reset-proof key read: see IntersectionMesher.cxx (Sphinx plot pre-code
+// calls ResourceMap::Reset(), wiping module runtime keys).
+static UnsignedInteger GetUIntKey(const char * key,
+                                  const UnsignedInteger fallback)
+{
+  try
+  {
+    return ResourceMap::GetAsUnsignedInteger(key);
+  }
+  catch (const Exception &)
+  {
+    return fallback;
+  }
+}
+
 // Sorted vertex key of a simplex, for exact-duplicate detection
 Indices SortedKey(const IndicesCollection & simplices,
                   const UnsignedInteger simplexIndex,
@@ -378,7 +393,7 @@ Mesh UnionMesher::build(const MeshCollection & coll) const
   // gluings (e.g. IntersectionMesher assembly of overlapping convex pieces) keep
   // weld plus duplicate removal only: subdivision would cascade on volumetric
   // overlaps instead of converging on interfaces.
-  const UnsignedInteger subdivisionThreshold = ResourceMap::GetAsUnsignedInteger("UnionMesher-SubdivisionThreshold");
+  const UnsignedInteger subdivisionThreshold = GetUIntKey("UnionMesher-SubdivisionThreshold", 256);
   const Bool refineInterfaces = (finalSimplices.getSize() <= subdivisionThreshold);
   LOGDEBUG(OSS() << "UnionMesher pieces=" << finalSimplices.getSize() << " refine=" << refineInterfaces);
   if (refineInterfaces && (dimension == 2))

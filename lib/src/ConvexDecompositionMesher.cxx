@@ -57,6 +57,22 @@ using namespace OT;
 
 namespace OTMESHING
 {
+// Reset-proof key read: see IntersectionMesher.cxx (Sphinx plot pre-code
+// calls ResourceMap::Reset(), wiping module runtime keys).
+static Scalar GetScalarKey(const char * key,
+                           const Scalar fallback)
+{
+  try
+  {
+    return ResourceMap::GetAsScalar(key);
+  }
+  catch (const Exception &)
+  {
+    return fallback;
+  }
+}
+
+
 
 CLASSNAMEINIT(ConvexDecompositionMesher)
 
@@ -505,7 +521,7 @@ Collection<Mesh> ConvexDecompositionMesher::build(const Mesh & mesh) const
         }
 
         coacd::set_log_level(Log::HasDebug() ? "debug" : "off");
-        const Scalar threshold = ResourceMap::GetAsScalar("ConvexDecompositionMesher-Threshold");
+        const Scalar threshold = GetScalarKey("ConvexDecompositionMesher-Threshold", 0.05);
         std::vector<coacd::Mesh> output = coacd::CoACD(input, threshold);
         LOGDEBUG(OSS() << "Component " << cid << " N CONVEX=" << output.size());
 

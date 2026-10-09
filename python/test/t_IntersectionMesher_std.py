@@ -206,3 +206,13 @@ ott.assert_almost_equal(gridInter.getVolume(), denseInter.getVolume())
 ott.assert_almost_equal(gridInter.getSimplicesNumber(), denseInter.getSimplicesNumber())
 ott.assert_almost_equal(gridInter.getVertices(), denseInter.getVertices(), 1e-12, 1e-12)
 print(f"grid/dense equivalence: vol={gridInter.getVolume():.3g}")
+
+# Reset-proof: module keys survive ResourceMap.Reset()
+ot.ResourceMap.Reset()
+resetInter = mesher.build(
+    [
+        ot.IntervalMesher([1] * 2).build(ot.Interval([0.0] * 2, [3.0] * 2)),
+        ot.IntervalMesher([1] * 2).build(ot.Interval([1.0] * 2, [4.0] * 2)),
+    ]
+)
+ott.assert_almost_equal(resetInter.getVolume(), 4.0)
