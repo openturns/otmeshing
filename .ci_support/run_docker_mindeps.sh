@@ -2,6 +2,11 @@
 
 set -xe
 
+printf '%s\n' \
+  'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260701T000000Z bullseye main' \
+  'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/20260701T000000Z bullseye-updates main' \
+  'deb [check-valid-until=no] http://snapshot.debian.org/archive/debian-security/20260701T000000Z bullseye-security main' > /etc/apt/sources.list
+
 apt-get -y update && apt-get -y install curl gnupg
 
 echo deb [signed-by=/usr/share/keyrings/openturns-keyring.gpg] https://openturns.github.io/apt/debian bullseye main | tee /etc/apt/sources.list.d/openturns.list
