@@ -197,7 +197,7 @@ for i in range(nTheta):
 starMesh = otmeshing.PolygonMesher().build(starPoints)
 refinedBox = ot.IntervalMesher([24] * 2).build(ot.Interval([-1.0] * 2, [1.0] * 2))
 assert starMesh.getSimplicesNumber() * 1 > 0
-ot.ResourceMap.SetAsUnsignedInteger("IntersectionMesher-GridThreshold", 2**62)
+ot.ResourceMap.SetAsUnsignedInteger("IntersectionMesher-GridThreshold", 2**31 - 1)
 denseInter = mesher.build([starMesh, refinedBox])
 ot.ResourceMap.SetAsUnsignedInteger("IntersectionMesher-GridThreshold", 0)
 gridInter = mesher.build([starMesh, refinedBox])
