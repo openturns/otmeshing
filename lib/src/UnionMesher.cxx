@@ -23,6 +23,7 @@
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
 #include <openturns/KDTree.hxx>
+#include <openturns/PlatformInfo.hxx>
 
 #include <algorithm>
 #include <vector>
@@ -100,24 +101,57 @@ Mesh UnionMesher::CompressMesh(const Mesh & mesh)
     return root;
   };
 
-  const KDTree tree(vertices);
   const Scalar tolerance = SpecFunc::Precision * vertices.computeRange().norm();
-  for (UnsignedInteger i = 0; i < fullSize; ++ i)
+  // radius neighbours via nanoflann when available, brute force otherwise
+  // (minimal configurations build without nanoflann, where queryRadius
+  // throws NotYetImplementedException)
+  if (PlatformInfo::HasFeature("nanoflann"))
   {
-    if (!usedVertex[i])
-      continue;
-    Point distance;
-    const Indices nearest(tree.queryRadius(vertices[i], tolerance, distance));
-    for (UnsignedInteger k = 0; k < nearest.getSize(); ++ k)
+    const KDTree tree(vertices);
+    for (UnsignedInteger i = 0; i < fullSize; ++ i)
     {
-      const UnsignedInteger j = nearest[k];
-      if (!usedVertex[j] || j == i)
+      if (!usedVertex[i])
         continue;
-      // Recompute rootI on each iteration so transitive chains merge correctly
-      const UnsignedInteger rootI = find(i);
-      const UnsignedInteger rootJ = find(j);
-      if (rootI != rootJ)
-        parent[rootI] = rootJ;
+      Point distance;
+      const Indices nearest(tree.queryRadius(vertices[i], tolerance, distance));
+      for (UnsignedInteger k = 0; k < nearest.getSize(); ++ k)
+      {
+        const UnsignedInteger j = nearest[k];
+        if (!usedVertex[j] || j == i)
+          continue;
+        // Recompute rootI on each iteration so transitive chains merge correctly
+        const UnsignedInteger rootI = find(i);
+        const UnsignedInteger rootJ = find(j);
+        if (rootI != rootJ)
+          parent[rootI] = rootJ;
+      }
+    }
+  }
+  else
+  {
+    for (UnsignedInteger i = 0; i < fullSize; ++ i)
+    {
+      if (!usedVertex[i])
+        continue;
+      for (UnsignedInteger j = i + 1; j < fullSize; ++ j)
+      {
+        if (!usedVertex[j])
+          continue;
+        Scalar squaredDistance = 0.0;
+        for (UnsignedInteger k = 0; k < dimension; ++ k)
+        {
+          const Scalar delta = vertices(i, k) - vertices(j, k);
+          squaredDistance += delta * delta;
+        }
+        if (squaredDistance <= tolerance * tolerance)
+        {
+          // Recompute rootI on each iteration so transitive chains merge correctly
+          const UnsignedInteger rootI = find(i);
+          const UnsignedInteger rootJ = find(j);
+          if (rootI != rootJ)
+            parent[rootI] = rootJ;
+        }
+      }
     }
   }
 
