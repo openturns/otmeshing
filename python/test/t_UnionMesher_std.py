@@ -206,3 +206,15 @@ ott.assert_almost_equal(tjunction3D.getVolume(), 2.0)
 ott.assert_almost_equal(tjunction3D.getVerticesNumber(), 22)
 # refinement fired (6 + 24 base simplices subdivided)
 assert tjunction3D.getSimplicesNumber() > 30
+
+# 17. Reset-proof: module keys survive ResourceMap.Reset() (Sphinx plot
+# pre-code calls Reset before every figure)
+ot.ResourceMap.Reset()
+resetUnion = mesher.build(
+    [
+        ot.IntervalMesher([1] * 2).build(ot.Interval(2)),
+        ot.IntervalMesher([1] * 2).build(ot.Interval([2.0, 0.0], [3.0, 1.0])),
+    ]
+)
+assert resetUnion.isValid()
+ott.assert_almost_equal(resetUnion.getVolume(), 2.0)
