@@ -156,3 +156,63 @@ intersection = mesher.buildConvex([mesh1, mesh1])
 volume = intersection.getVolume()
 print(f"{dim=} intersection={intersection} {volume=:.3g}")
 ott.assert_almost_equal(volume, mesh1.getVolume())
+
+# disjoint chain: pairwise-overlapping but globally empty intersection.
+# Must be empty (not the survivors' ghost): prune-fix regression test
+for dim in range(2, 5):
+    chain = []
+    for i in range(16):
+        lo = [0.25 * i] * dim
+        hi = [3.0 + 0.25 * i] * dim
+        chain.append(ot.IntervalMesher([2] * dim).build(ot.Interval(lo, hi)))
+    samples = [m.getVertices() for m in chain]
+    ott.assert_almost_equal(mesher.buildConvexSample(samples).getSize(), 0)
+    ott.assert_almost_equal(mesher.buildConvexTree(samples).getSize(), 0)
+    ott.assert_almost_equal(mesher.buildConvex(chain).getVolume(), 0.0)
+    ott.assert_almost_equal(mesher.build(chain).getVolume(), 0.0)
+    print(f"disjoint chain dim={dim}: all empty as expected")
+
+# tree vs monolithic consistency on overlapping convex inputs
+for dim in range(2, 5):
+    overlapping = []
+    for i in range(6):
+        lo = [0.5 * i] * dim
+        hi = [3.0 + 0.5 * i] * dim
+        overlapping.append(ot.IntervalMesher([2] * dim).build(ot.Interval(lo, hi)))
+    samples = [m.getVertices() for m in overlapping]
+    monoVolume = otmeshing.IntersectionMesher().buildConvex(overlapping).getVolume()
+    treeSamples = mesher.buildConvexTree(samples)
+    # common intersection is [2.5, 3.0]^dim
+    ott.assert_almost_equal(monoVolume, 0.5**dim)
+    ott.assert_almost_equal(mesher.build(overlapping).getVolume(), 0.5**dim)
+    print(f"overlapping dim={dim}: volume={monoVolume:.3g} (exact {0.5**dim:.3g})")
+
+# grid vs dense equivalence above the candidate threshold (non-convex pair)
+nTheta = 64
+starPoints = []
+for i in range(nTheta):
+    angle = 2.0 * math.pi * i / nTheta
+    radius = 1.0 if i % 2 == 0 else 1.5
+    starPoints.append([radius * math.cos(angle), radius * math.sin(angle)])
+starMesh = otmeshing.PolygonMesher().build(starPoints)
+refinedBox = ot.IntervalMesher([24] * 2).build(ot.Interval([-1.0] * 2, [1.0] * 2))
+assert starMesh.getSimplicesNumber() * 1 > 0
+ot.ResourceMap.SetAsUnsignedInteger("IntersectionMesher-GridThreshold", 2**31 - 1)
+denseInter = mesher.build([starMesh, refinedBox])
+ot.ResourceMap.SetAsUnsignedInteger("IntersectionMesher-GridThreshold", 0)
+gridInter = mesher.build([starMesh, refinedBox])
+ot.ResourceMap.SetAsUnsignedInteger("IntersectionMesher-GridThreshold", 1 << 10)
+ott.assert_almost_equal(gridInter.getVolume(), denseInter.getVolume())
+ott.assert_almost_equal(gridInter.getSimplicesNumber(), denseInter.getSimplicesNumber())
+ott.assert_almost_equal(gridInter.getVertices(), denseInter.getVertices(), 1e-12, 1e-12)
+print(f"grid/dense equivalence: vol={gridInter.getVolume():.3g}")
+
+# Reset-proof: module keys survive ResourceMap.Reset()
+ot.ResourceMap.Reset()
+resetInter = mesher.build(
+    [
+        ot.IntervalMesher([1] * 2).build(ot.Interval([0.0] * 2, [3.0] * 2)),
+        ot.IntervalMesher([1] * 2).build(ot.Interval([1.0] * 2, [4.0] * 2)),
+    ]
+)
+ott.assert_almost_equal(resetInter.getVolume(), 4.0)

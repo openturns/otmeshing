@@ -137,6 +137,42 @@ int main()
       throw TestFailed(OSS() << "Expected at least 3 vertices");
   }
 
+  // 9b. disjoint chain: globally empty despite pairwise overlaps (prune fix)
+  for (UnsignedInteger dim = 2; dim <= 4; ++ dim)
+  {
+    MeshCollection chain;
+    for (UnsignedInteger i = 0; i < 16; ++ i)
+    {
+      Point lo(dim, 0.25 * i);
+      Point hi(dim, 3.0 + 0.25 * i);
+      chain.add(IntervalMesher(Indices(dim, 2)).build(Interval(lo, hi)));
+    }
+    SampleCollection samples;
+    for (UnsignedInteger i = 0; i < chain.getSize(); ++ i)
+      samples.add(chain[i].getVertices());
+    assert_equal(mesher.buildConvexSample(samples).getSize(), 0UL);
+    assert_equal(mesher.buildConvexTree(samples).getSize(), 0UL);
+    assert_almost_equal(mesher.buildConvex(chain).getVolume(), 0.0);
+    assert_almost_equal(mesher.build(chain).getVolume(), 0.0);
+    std::cout << "disjoint chain dim=" << dim << ": empty as expected" << std::endl;
+  }
+
+  // 9c. tree vs monolithic consistency on overlapping convex inputs
+  for (UnsignedInteger dim = 2; dim <= 4; ++ dim)
+  {
+    MeshCollection overlapping;
+    for (UnsignedInteger i = 0; i < 6; ++ i)
+    {
+      Point lo(dim, 0.5 * i);
+      Point hi(dim, 3.0 + 0.5 * i);
+      overlapping.add(IntervalMesher(Indices(dim, 2)).build(Interval(lo, hi)));
+    }
+    // common intersection is [2.5, 3.0]^dim
+    assert_almost_equal(mesher.buildConvex(overlapping).getVolume(), std::pow(0.5, (int)dim));
+    assert_almost_equal(mesher.build(overlapping).getVolume(), std::pow(0.5, (int)dim));
+    std::cout << "overlapping dim=" << dim << ": consistent" << std::endl;
+  }
+
   // 10. buildConvex empty / single / self
   {
     const Mesh empty(mesher.buildConvex(MeshCollection()));

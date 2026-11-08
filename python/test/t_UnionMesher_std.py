@@ -151,3 +151,70 @@ assert compressed.isValid()
 # 4 unique vertices + 2 duplicates -> 4 compressed vertices
 ott.assert_almost_equal(compressed.getVerticesNumber(), 4)
 ott.assert_almost_equal(compressed.getVolume(), 2.0)
+
+# 14. Coincident meshes union to their common mesh (no double counting)
+square = ot.IntervalMesher([1] * 2).build(ot.Interval(2))
+coincident = mesher.build([square, square])
+print(f"Coincident: {coincident}")
+assert coincident.isValid()
+ott.assert_almost_equal(coincident.getVolume(), 1.0)
+ott.assert_almost_equal(coincident.getSimplicesNumber(), 2)
+ott.assert_almost_equal(coincident.getVerticesNumber(), 4)
+
+
+def edge_counts_2d(mesh):
+    counts = {}
+    for simplex in mesh.getSimplices():
+        for e in range(3):
+            key = tuple(sorted((simplex[e], simplex[(e + 1) % 3])))
+            counts[key] = counts.get(key, 0) + 1
+    return counts
+
+
+# 15. T-junction: shared vertices connected differently across meshes
+# A = [0,1]^2, B = [1,2]x[0,1] with a mid node (1, 0.5) on the shared edge
+meshA = ot.Mesh([[0, 0], [1, 0], [1, 1], [0, 1]], [[0, 1, 2], [0, 2, 3]])
+meshB = ot.Mesh(
+    [[1, 0], [2, 0], [2, 1], [1, 1], [1, 0.5]], [[0, 1, 2], [0, 2, 4], [2, 3, 4]]
+)
+tjunction = mesher.build([meshA, meshB])
+print(f"T-junction: {tjunction}")
+assert tjunction.isValid()
+ott.assert_almost_equal(tjunction.getVolume(), 2.0)
+ott.assert_almost_equal(tjunction.getVerticesNumber(), 7)
+ott.assert_almost_equal(tjunction.getSimplicesNumber(), 6)
+# conforming interface: shared edge split node-for-node, each piece used twice
+counts = edge_counts_2d(tjunction)
+vertices = tjunction.getVertices()
+interface = [
+    k
+    for k in counts
+    if abs(vertices[k[0]][0] - 1.0) < 1e-12 and abs(vertices[k[1]][0] - 1.0) < 1e-12
+]
+assert len(interface) == 2, "shared edge must be split in two"
+assert all(counts[k] == 2 for k in interface), "interface edges must be shared twice"
+
+# 16. 3D T-junction: mismatched face resolutions across the shared face.
+# A = [0,1]^3, B = [0,1]^2x[1,2] refined 2x2 on the shared face.
+meshA3D = ot.IntervalMesher([1] * 3).build(ot.Interval([0.0] * 3, [1.0] * 3))
+meshB3D = ot.IntervalMesher([2, 2, 1]).build(ot.Interval([0.0, 0.0, 1.0], [1.0, 1.0, 2.0]))
+tjunction3D = mesher.build([meshA3D, meshB3D])
+print(f"T-junction 3D: {tjunction3D}")
+assert tjunction3D.isValid()
+ott.assert_almost_equal(tjunction3D.getVolume(), 2.0)
+# no new vertices: splits reuse welded nodes only (8 + 18 - 4 corners)
+ott.assert_almost_equal(tjunction3D.getVerticesNumber(), 22)
+# refinement fired (6 + 24 base simplices subdivided)
+assert tjunction3D.getSimplicesNumber() > 30
+
+# 17. Reset-proof: module keys survive ResourceMap.Reset() (Sphinx plot
+# pre-code calls Reset before every figure)
+ot.ResourceMap.Reset()
+resetUnion = mesher.build(
+    [
+        ot.IntervalMesher([1] * 2).build(ot.Interval(2)),
+        ot.IntervalMesher([1] * 2).build(ot.Interval([2.0, 0.0], [3.0, 1.0])),
+    ]
+)
+assert resetUnion.isValid()
+ott.assert_almost_equal(resetUnion.getVolume(), 2.0)

@@ -220,5 +220,59 @@ int main()
     assert_almost_equal(compressed.getVolume(), 2.0);
   }
 
+  // 15. Coincident meshes union to their common mesh (no double counting)
+  {
+    const Mesh square(IntervalMesher(Indices(2, 1)).build(Interval(2)));
+    const Mesh coincident(mesher.build({square, square}));
+    std::cout << "Coincident: " << coincident << std::endl;
+    assert_equal(coincident.getVerticesNumber(), 4UL);
+    assert_equal(coincident.getSimplicesNumber(), 2UL);
+    assert_almost_equal(coincident.getVolume(), 1.0);
+  }
+
+  // 16. T-junction: shared vertices connected differently across meshes
+  {
+    Sample verticesA(0, 2);
+    verticesA.add(Point({0.0, 0.0}));
+    verticesA.add(Point({1.0, 0.0}));
+    verticesA.add(Point({1.0, 1.0}));
+    verticesA.add(Point({0.0, 1.0}));
+    IndicesCollection simplicesA(2, 3);
+    simplicesA(0, 0) = 0; simplicesA(0, 1) = 1; simplicesA(0, 2) = 2;
+    simplicesA(1, 0) = 0; simplicesA(1, 1) = 2; simplicesA(1, 2) = 3;
+    const Mesh meshA(verticesA, simplicesA);
+    Sample verticesB(0, 2);
+    verticesB.add(Point({1.0, 0.0}));
+    verticesB.add(Point({2.0, 0.0}));
+    verticesB.add(Point({2.0, 1.0}));
+    verticesB.add(Point({1.0, 1.0}));
+    verticesB.add(Point({1.0, 0.5}));
+    IndicesCollection simplicesB(3, 3);
+    simplicesB(0, 0) = 0; simplicesB(0, 1) = 1; simplicesB(0, 2) = 2;
+    simplicesB(1, 0) = 0; simplicesB(1, 1) = 2; simplicesB(1, 2) = 4;
+    simplicesB(2, 0) = 2; simplicesB(2, 1) = 3; simplicesB(2, 2) = 4;
+    const Mesh meshB(verticesB, simplicesB);
+    const Mesh tjunction(mesher.build({meshA, meshB}));
+    std::cout << "T-junction: " << tjunction << std::endl;
+    assert_equal(tjunction.getVerticesNumber(), 7UL);
+    assert_equal(tjunction.getSimplicesNumber(), 6UL);
+    assert_almost_equal(tjunction.getVolume(), 2.0);
+  }
+
+  // 17. 3D T-junction: mismatched face resolutions across the shared face
+  {
+    const Mesh meshA(IntervalMesher(Indices(3, 1)).build(Interval(Point(3, 0.0), Point(3, 1.0))));
+    Indices discB(3, 1);
+    discB[0] = 2;
+    discB[1] = 2;
+    const Mesh meshB(IntervalMesher(discB).build(Interval(Point({0.0, 0.0, 1.0}), Point({1.0, 1.0, 2.0}))));
+    const Mesh tjunction(mesher.build({meshA, meshB}));
+    std::cout << "T-junction 3D: " << tjunction << std::endl;
+    assert_equal(tjunction.getVerticesNumber(), 22UL);
+    assert_almost_equal(tjunction.getVolume(), 2.0);
+    if (!(tjunction.getSimplicesNumber() > 30))
+      throw TestFailed("3D subdivision did not refine");
+  }
+
   return 0;
 }

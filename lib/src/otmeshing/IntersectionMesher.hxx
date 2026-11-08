@@ -61,6 +61,8 @@ public:
   /** intersection of convexes */
   virtual OT::Mesh buildConvex(const MeshCollection & coll) const;
   virtual OT::Sample buildConvexSample(const SampleCollection & coll) const;
+  /** intersection of convexes by binary-tree pairwise reduction (parallel) */
+  virtual OT::Sample buildConvexTree(const SampleCollection & coll) const;
 
   /** intersection of cylinders */
   virtual OT::Mesh buildCylinder(const CylinderCollection & coll) const;
