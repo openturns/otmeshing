@@ -20,6 +20,8 @@
  */
 #include "otmeshing/UnionMesher.hxx"
 
+#include <set>
+
 #include <openturns/PersistentObjectFactory.hxx>
 #include <openturns/SpecFunc.hxx>
 #include <openturns/KDTree.hxx>
@@ -170,6 +172,44 @@ Mesh UnionMesher::CompressMesh(const Mesh & mesh)
   for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
     for (UnsignedInteger j = 0; j <= dimension; ++ j)
       simplices(i, j) = compressedVertexMap[simplices(i, j)];
+
+  // Drop simplices collapsed by the vertex merging above (e.g. near-duplicate
+  // vertices fused by the tolerance): they would mix intrinsic dimensions
+  // within the mesh, which Mesh::getIntrinsicDimension rejects. Their volume
+  // contribution is negligible, matching the historical behavior where such
+  // simplices measured zero. The target dimension is the maximum over the
+  // simplices so valid lower-dimensional meshes (e.g. surfaces stored with
+  // padded simplices) are preserved as-is.
+  UnsignedInteger targetDimension = 0;
+  Indices firstRepeat(simplices.getSize(), dimension + 1);
+  for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+  {
+    std::set<UnsignedInteger> seen;
+    for (UnsignedInteger j = 0; j <= dimension; ++ j)
+      if (!seen.insert(simplices(i, j)).second)
+      {
+        firstRepeat[i] = j;
+        break;
+      }
+    targetDimension = std::max(targetDimension, firstRepeat[i] - 1);
+  }
+  UnsignedInteger keptNumber = 0;
+  for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+    if (firstRepeat[i] - 1 == targetDimension)
+      ++ keptNumber;
+  if (keptNumber < simplices.getSize())
+  {
+    IndicesCollection keptSimplices(keptNumber, dimension + 1);
+    UnsignedInteger keptIndex = 0;
+    for (UnsignedInteger i = 0; i < simplices.getSize(); ++ i)
+      if (firstRepeat[i] - 1 == targetDimension)
+      {
+        for (UnsignedInteger j = 0; j <= dimension; ++ j)
+          keptSimplices(keptIndex, j) = simplices(i, j);
+        ++ keptIndex;
+      }
+    return Mesh(verticesCompressed, keptSimplices);
+  }
   return Mesh(verticesCompressed, simplices);
 }
 
