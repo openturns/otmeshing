@@ -103,6 +103,27 @@ struct IntersectionMesherConvexSamplePolicy
   }
 };
 
+// Check that vertices span the full ambient dimension, to prune
+// lower-dimensional (shared face/edge) pairwise intersections
+static Bool isFullDimensional(const Sample & s)
+{
+  const UnsignedInteger dim = s.getDimension();
+  const UnsignedInteger n = s.getSize();
+  if (!dim || n <= dim)
+    return false;
+  const Point eig(s.computeCovariance().computeEigenValues());
+  Scalar mx = eig[0];
+  Scalar mn = eig[0];
+  for (UnsignedInteger i = 1; i < eig.getSize(); ++ i)
+  {
+    mx = std::max(mx, eig[i]);
+    mn = std::min(mn, eig[i]);
+  }
+  if (!(mx > 0.0))
+    return false;
+  return !(mn < SpecFunc::Precision * mx);
+}
+
 Mesh IntersectionMesher::build(const Collection<Mesh> & coll) const
 {
   const UnsignedInteger size = coll.getSize();
@@ -416,6 +437,12 @@ Sample IntersectionMesher::buildConvexSample(const Collection<Sample> & coll) co
   }
   dd_FreeMatrix(gen);
 
+  // Only full-dimensional intersections are usable for volume meshing:
+  // shared faces/edges of adjacent decomposition pieces yield coplanar
+  // vertex sets which would mesh into degenerate simplices and produce
+  // mixed-dimension meshes rejected by Mesh::getIntrinsicDimension.
+  if (result.getSize() && !isFullDimensional(result))
+    return Sample(0, dimension);
   return result;
 #else
   throw NotYetImplementedException(HERE) << "No cddlib support";
