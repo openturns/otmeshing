@@ -13,11 +13,16 @@ BuildRequires:  gcc-c++, cmake, swig
 BuildRequires:  openturns-devel
 BuildRequires:  python3-openturns
 BuildRequires:  python3-devel
+%if 0%{?suse_version}
+BuildRequires:  cgal-devel
+%else
 BuildRequires:  CGAL-devel
+%endif
 BuildRequires:  cddlib-devel
 BuildRequires:  qhull-devel
 BuildRequires:  eigen3-devel
 BuildRequires:  tbb-devel
+BuildRequires:  coacd-devel
 Requires:       libotmeshing0
 
 %description
