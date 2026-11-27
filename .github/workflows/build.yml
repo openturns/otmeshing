@@ -56,12 +56,11 @@ jobs:
     - run: |
         cmake \
         -DCMAKE_INSTALL_PREFIX=~/.local \
-        -DCMAKE_PREFIX_PATH="/opt/homebrew/opt/openblas;/opt/homebrew/opt/libxml2" \
         -DCMAKE_CXX_FLAGS="-Wall -Wextra -Werror" \
         -DBUILD_PYTHON=OFF .
         make install
         make tests
-        ctest ${MAKEFLAGS} --output-on-failure --timeout 200 --schedule-random
+        ctest ${MAKEFLAGS} --output-on-failure --timeout 100 --schedule-random
 
   windows:
     runs-on: windows-latest
