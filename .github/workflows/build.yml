@@ -15,7 +15,7 @@ jobs:
       - name: Upload
         if: ${{ github.ref == 'refs/heads/master' }}
         run: |
-          git clone --depth 1 https://${{ secrets.GH_TOKEN }}@github.com/openturns/openturns.github.io.git /tmp/io
+          git clone --depth 1 https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/openturns/openturns.github.io.git /tmp/io
           mkdir -p /tmp/io/otmeshing/master
           cp -r html/* /tmp/io/otmeshing/master
           cd /tmp/io
